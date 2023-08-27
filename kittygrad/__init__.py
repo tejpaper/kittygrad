@@ -11,4 +11,4 @@ if __name__ != '__main__':
     from numpy import float64 as float64
     from numpy import float64 as double
 else:
-    raise ImportError('Package startup error.')
+    raise ImportError('Package startup error')
