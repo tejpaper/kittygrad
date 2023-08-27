@@ -12,8 +12,8 @@ class AccumulateGrad:
 
     def accumulate(self, grad: np.ndarray):
         if self.tensor.shape != grad.shape:
-            raise RuntimeError(f'The size of tensor {self.tensor.shape} '
-                               f'must match the size of its gradient {grad.shape}')
+            raise RuntimeError(f"The size of tensor {self.tensor.shape} "
+                               f"must match the size of its gradient {grad.shape}")
 
         if self.tensor.grad is None:
             self.tensor.grad = grad
