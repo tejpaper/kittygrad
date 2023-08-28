@@ -7,6 +7,7 @@ from .utils import *
 import numpy as np
 
 import typing
+import warnings
 from functools import wraps
 
 
@@ -18,9 +19,10 @@ class Tensor:
             else:
                 self._data = data
 
-        elif dtype is None and (dtype := np.result_type(*flatten(data))) not in ALL_DTYPES:
+        elif dtype is None and ((dtype := np.result_type(*flatten(data))) not in ALL_DTYPES or dtype == np.float_):
             self._data = np.array(data, DEFAULT_DTYPE)
-
+        elif dtype not in ALL_DTYPES:
+            raise TypeError(f"Data type '{dtype.__name__}' is not supported")
         else:
             self._data = np.array(data, dtype)
 
@@ -32,7 +34,7 @@ class Tensor:
 
     # ============================================= Tensor Representation ==============================================
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         tensor_prefix = 'tensor('
         tensor_padding = ' ' * len(tensor_prefix)
 
@@ -40,20 +42,26 @@ class Tensor:
         array_padding = ' ' * len(array_prefix)
 
         data_str = repr(self._data)
-        data_str = data_str[data_str.find('['):data_str.rfind(']') + 1]
+        if self.ndims:
+            data_str = data_str[data_str.find('['):data_str.rfind(']') + 1]
+        else:
+            data_str = data_str[len(array_prefix):data_str.rfind(',')]
         data_str = data_str.replace('\n' + array_padding, '\n' + tensor_padding)
 
-        return tensor_prefix + data_str + ')'
+        main_content = tensor_prefix + data_str
 
-    def __repr__(self) -> str:
-        prefix = self.__str__()[:-1]
+        if self.dtype != DEFAULT_DTYPE:
+            main_content += f', dtype={self.dtype}'
 
         if self._grad_fn is not None:
-            return f'{prefix}, grad_fn={self._grad_fn})'  # TODO: test
+            return f'{main_content}, grad_fn={self._grad_fn})'  # TODO: test (backward)
         elif self._requires_grad:
-            return prefix + ', requires_grad=True)'
+            return main_content + ', requires_grad=True)'
         else:
-            return prefix + ')'
+            return main_content + ')'
+
+    def __str__(self) -> str:
+        return repr(self)
 
     # ============================================== Getters and Setters ===============================================
 
@@ -80,8 +88,8 @@ class Tensor:
     @requires_grad.setter
     def requires_grad(self, new_value: bool) -> None:
         if not self._is_leaf:
-            raise RuntimeError(
-                "You can only change requires_grad flags of leaf variables." + "" if new_value else  # TODO: test
+            raise RuntimeError(  # TODO: test (backward)                               (^v^)
+                "You can only change requires_grad flags of leaf variables." + "" if new_value else
                 "If you want to use a computed variable in a subgraph that doesn't "
                 "require differentiation use var_no_grad = var.detach().")
 
@@ -93,11 +101,27 @@ class Tensor:
 
     @grad.setter
     def grad(self, new_grad: Tensor | None) -> None:
-        if type(new_grad) != type(self) and new_grad is not None:
+        if new_grad is None:
+            self._grad = new_grad
+            return  # it's ok if requires_grad=False
+
+        if type(new_grad) != type(self):
             raise TypeError(f"Assigned grad expected to be a Tensor or None "
                             f"but got grad of '{type(new_grad).__name__}'")
+        elif id(new_grad) == id(self):
+            raise RuntimeError("Can't assign Variable as its own grad")
+        elif new_grad.dtype != self.dtype:
+            raise RuntimeError("Assigned grad has data of a different type")
+        elif new_grad.shape != self.shape:
+            raise RuntimeError("Assigned grad has data of a different size")
+        else:
+            self._grad = new_grad
 
-        self._grad = new_grad
+        # consistency
+        if not self._requires_grad:
+            warnings.warn("Trying to assign a gradient to a tensor that doesn't need it. "
+                          "The requires_grad attribute is set to True")
+            self._requires_grad = True
 
     @property  # not writable
     def grad_fn(self) -> BackwardAccess:
@@ -148,14 +172,17 @@ class Tensor:
                     first_operand, second_operand = self, other
 
                 if type(other) == type(self):
-                    if self.dtype != other.dtype:
-                        raise TypeError("Operands type mismatch: {} != {}"  # TODO: test
+                    if other.dtype != self.dtype:
+                        raise TypeError("Operands type mismatch: {} != {}"
                                         .format(first_operand.dtype, second_operand.dtype))
+                    elif other.shape != self.shape:  # no broadcasting  TODO: mb develop
+                        raise RuntimeError("The size of tensor a {} must match the size of tensor b {}"
+                                           .format(first_operand.shape, second_operand.shape))
 
                     return operator(self, other)
 
                 raise TypeError(
-                    "Unsupported operand type(s) for {}: '{}' and '{}'"  # TODO: test
+                    "Unsupported operand type(s) for {}: '{}' and '{}'"
                     .format(op_symbol, type(first_operand).__name__, type(second_operand).__name__))
 
             return handler
