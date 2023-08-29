@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import kittygrad.func as func
-from .autograd import BackwardAccess
+from .autograd import FnBackward
 from .utils import *
 
 import numpy as np
@@ -11,8 +11,9 @@ import warnings
 from functools import wraps
 
 
+# noinspection PyProtectedMember
 class Tensor:
-    def __init__(self, data, dtype: typing.Optional[type] = None, requires_grad: bool = False) -> None:
+    def __init__(self, data, dtype: typing.Optional[type | np.dtype] = None, requires_grad: bool = False) -> None:
         if isinstance(data, np.ndarray):
             if data.dtype not in ALL_DTYPES:
                 self._data = data.astype(DEFAULT_DTYPE)
@@ -30,6 +31,7 @@ class Tensor:
         self._grad = None
         self._grad_fn = None  # points to a node in a backward graph
         self._is_leaf = True
+        self._retains_grad = False
         self._version = 0
 
     # ============================================= Tensor Representation ==============================================
@@ -42,7 +44,7 @@ class Tensor:
         array_padding = ' ' * len(array_prefix)
 
         data_str = repr(self._data)
-        if self.ndims:
+        if self.ndim:
             data_str = data_str[data_str.find('['):data_str.rfind(']') + 1]
         else:
             data_str = data_str[len(array_prefix):data_str.rfind(',')]
@@ -67,14 +69,14 @@ class Tensor:
 
     @property  # not writable
     def data(self) -> Tensor:
-        return tensor(self._data, requires_grad=False)
+        return tensor(self._data)
 
     @property  # not writable
     def shape(self) -> tuple[int, ...]:
         return self._data.shape
 
     @property  # not writable
-    def ndims(self) -> int:
+    def ndim(self) -> int:
         return len(self._data.shape)
 
     @property  # not writable
@@ -96,8 +98,16 @@ class Tensor:
         self._requires_grad = new_value
 
     @property
-    def grad(self) -> Tensor:
-        return self._grad
+    def grad(self) -> Tensor | None:
+        if not self._is_leaf and not self._retains_grad:  # TODO: test
+            warnings.warn("The .grad attribute of a Tensor that is not a leaf Tensor is being accessed. "
+                          "Its .grad attribute won't be populated during autograd.backward(). If you "
+                          "indeed want the .grad field to be populated for a non-leaf Tensor, use .retain_grad() "
+                          "on the non-leaf Tensor. If you access the non-leaf Tensor by mistake, make sure you "
+                          "access the leaf Tensor instead.")
+
+        if self._grad is not None:
+            return tensor(self._grad)
 
     @grad.setter
     def grad(self, new_grad: Tensor | None) -> None:
@@ -111,11 +121,11 @@ class Tensor:
         elif id(new_grad) == id(self):
             raise RuntimeError("Can't assign Variable as its own grad")
         elif new_grad.dtype != self.dtype:
-            raise RuntimeError("Assigned grad has data of a different type")
+            raise TypeError("Assigned grad has data of a different type")
         elif new_grad.shape != self.shape:
             raise RuntimeError("Assigned grad has data of a different size")
         else:
-            self._grad = new_grad
+            self._grad = new_grad._data
 
         # consistency
         if not self._requires_grad:
@@ -124,22 +134,26 @@ class Tensor:
             self._requires_grad = True
 
     @property  # not writable
-    def grad_fn(self) -> BackwardAccess:
+    def grad_fn(self) -> FnBackward:
         return self._grad_fn
 
     @property  # not writable
     def is_leaf(self) -> bool:
         return self._is_leaf
 
+    @property  # one-way writable with tensor.retain_grad()
+    def retains_grad(self) -> bool:
+        return self._retains_grad
+
     def __getitem__(self, *args, **kwargs) -> Tensor:
         if self._requires_grad:
             pass  # TODO: SelectBackward
         else:
-            return tensor(data=self._data.__getitem__(*args, **kwargs), requires_grad=False)
+            return tensor(data=self._data.__getitem__(*args, **kwargs))
 
     def __setitem__(self, key, value) -> None:
         if type(value) == type(self):
-            value = value._data  # noqa: friend
+            value = value._data
 
         if self._requires_grad:
             pass  # TODO: CopySlices
@@ -161,10 +175,9 @@ class Tensor:
                     raise RuntimeError("Incorrect use of operator handler")
 
                 if isinstance(other, Scalar):
-                    return operator(self, other)
-
-                if isinstance(other, np.ndarray):
-                    other = tensor(other, dtype=self.dtype, requires_grad=False)
+                    other = tensor(np.full(self.shape, other, dtype=self.dtype))
+                elif isinstance(other, np.ndarray):
+                    other = tensor(other, dtype=self.dtype)
 
                 if reverse:
                     first_operand, second_operand = other, self
@@ -175,8 +188,8 @@ class Tensor:
                     if other.dtype != self.dtype:
                         raise TypeError("Operands type mismatch: {} != {}"
                                         .format(first_operand.dtype, second_operand.dtype))
-                    elif other.shape != self.shape:  # no broadcasting  TODO: mb develop
-                        raise RuntimeError("The size of tensor a {} must match the size of tensor b {}"
+                    elif other.shape != self.shape:  # TODO: broadcasting
+                        raise RuntimeError("Operands size mismatch: {} != {}"
                                            .format(first_operand.shape, second_operand.shape))
 
                     return operator(self, other)
@@ -188,7 +201,7 @@ class Tensor:
             return handler
         return handler_decor
 
-    @__operator_handler(op_symbol='+')
+    @__operator_handler(op_symbol='+')  # TODO: a + a test
     def __add__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
         return func.add(self, other)
 
@@ -207,13 +220,25 @@ class Tensor:
     # ================================================== Interaction ===================================================
 
     def detach(self):  # unlike torch makes a full copy of a tensor
-        return tensor(np.copy(self._data), requires_grad=False)  # TODO: test
+        return tensor(np.copy(self._data))
+
+    def retain_grad(self) -> None:
+        if not self._is_leaf:
+            self._retains_grad = True
 
     def backward(self, gradient: typing.Optional[Tensor] = None) -> None:
         if not self._requires_grad:
             raise RuntimeError("Tensor does not require grad and does not have a grad_fn")
+        elif gradient is None and self.ndim:
+            raise RuntimeError("Grad can be implicitly created only for scalar outputs")
 
-        pass  # TODO
+        if gradient is None:
+            gradient = tensor(1, dtype=self.dtype)
+
+        if self._is_leaf:
+            self.grad = gradient
+        else:
+            self._grad_fn.propagate(gradient._data)
 
 
 tensor = Tensor
