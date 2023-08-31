@@ -1,9 +1,7 @@
-import numpy as np
-
-ALL_DTYPES = [np.float16, np.float32, np.float64]
-DEFAULT_DTYPE = np.float32
-
-Scalar = int | float  # because of numbers.Number includes complex numbers
+class DotDict(dict):
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
 
 
 def flatten(x: list) -> list:

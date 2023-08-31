@@ -105,7 +105,7 @@ def test_exceptions():
         tensor.grad = tensor
     assert str(msg.value) == "Can't assign Variable as its own grad"
 
-    with pytest.raises(RuntimeError) as msg:
+    with pytest.raises(TypeError) as msg:
         tensor.grad = kitty.tensor([-1, 0], dtype=kitty.double)
     assert str(msg.value) == "Assigned grad has data of a different type"
 

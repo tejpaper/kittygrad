@@ -1,6 +1,6 @@
 if __name__ != '__main__':
     from .tensor import tensor
-    from .autograd import AccumulateGrad  # TODO: remove
+    from .func import *
 
     from numpy import float16 as float16
     from numpy import float16 as half
@@ -11,4 +11,4 @@ if __name__ != '__main__':
     from numpy import float64 as float64
     from numpy import float64 as double
 else:
-    raise ImportError('Package startup error')
+    raise ImportError("Package startup error")

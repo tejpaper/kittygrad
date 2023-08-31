@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import kittygrad.func as func
 from .autograd import FnBackward
-from .utils import *
+import kittygrad.func as func
+from .constants import *
+from .utils import flatten
 
 import numpy as np
 
@@ -13,7 +14,7 @@ from functools import wraps
 
 # noinspection PyProtectedMember
 class Tensor:
-    def __init__(self, data, dtype: typing.Optional[type | np.dtype] = None, requires_grad: bool = False) -> None:
+    def __init__(self, data, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
         if isinstance(data, np.ndarray):
             if data.dtype not in ALL_DTYPES:
                 self._data = data.astype(DEFAULT_DTYPE)
@@ -189,7 +190,7 @@ class Tensor:
                         raise TypeError("Operands type mismatch: {} != {}"
                                         .format(first_operand.dtype, second_operand.dtype))
                     elif other.shape != self.shape:  # TODO: broadcasting
-                        raise RuntimeError("Operands size mismatch: {} != {}"
+                        raise RuntimeError("The size of tensor a {} must match the size of tensor b {}"
                                            .format(first_operand.shape, second_operand.shape))
 
                     return operator(self, other)
@@ -201,9 +202,9 @@ class Tensor:
             return handler
         return handler_decor
 
-    @__operator_handler(op_symbol='+')  # TODO: a + a test
+    @__operator_handler(op_symbol='+')
     def __add__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func.add(self, other)
+        return func.add(self, other)  # TODO: solve return type problem
 
     @__operator_handler(op_symbol='+', reverse=True)
     def __radd__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
@@ -226,7 +227,7 @@ class Tensor:
         if not self._is_leaf:
             self._retains_grad = True
 
-    def backward(self, gradient: typing.Optional[Tensor] = None) -> None:
+    def backward(self, gradient: Tensor | None = None) -> None:
         if not self._requires_grad:
             raise RuntimeError("Tensor does not require grad and does not have a grad_fn")
         elif gradient is None and self.ndim:
@@ -238,7 +239,7 @@ class Tensor:
         if self._is_leaf:
             self.grad = gradient
         else:
-            self._grad_fn.propagate(gradient._data)
+            self._grad_fn.propagate(gradient._data)  # TODO: force
 
 
 tensor = Tensor
