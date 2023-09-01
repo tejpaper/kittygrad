@@ -1,5 +1,11 @@
-if __name__ != '__main__':
-    from .activation import *
-    from .ops import *
-else:
-    raise ImportError("Package startup error")
+from .activation import (
+    _sigmoid,
+    _tanh,
+    _relu,
+)
+from .ops import (
+    _add,
+    _mul,
+)
+
+# TODO: user interface

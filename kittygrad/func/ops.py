@@ -8,9 +8,8 @@ from ..autograd import (
 )
 
 
-# noinspection PyProtectedMember
 @backward_graph(AddBackward)
-def add(tensor: tsr.Tensor, other: tsr.Tensor) -> tuple[tsr.Tensor, ...]:
+def _add(tensor: tsr.Tensor, other: tsr.Tensor) -> tuple[tsr.Tensor, ...]:
     return tsr.tensor(
         data=tensor._data + other._data,
         dtype=tensor.dtype,
@@ -18,11 +17,14 @@ def add(tensor: tsr.Tensor, other: tsr.Tensor) -> tuple[tsr.Tensor, ...]:
     ),
 
 
-# noinspection PyProtectedMember
 @backward_graph(MulBackward)
-def mul(tensor: tsr.Tensor, other: tsr.Tensor) -> tuple[tsr.Tensor, ...]:
+def _mul(tensor: tsr.Tensor, other: tsr.Tensor) -> tuple[tsr.Tensor, ...]:
     return tsr.tensor(
         data=tensor._data * other._data,
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
-    ), tensor, other
+    ), *(
+        (other,) if tensor.requires_grad else ()
+    ), *(
+        (tensor,) if other.requires_grad else ()
+    )

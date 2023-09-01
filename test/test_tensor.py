@@ -77,45 +77,45 @@ def test_repr():
 def test_exceptions():
     with pytest.raises(TypeError) as msg:
         kitty.tensor(1, dtype=int)
-    assert str(msg.value) == "Data type 'int' is not supported"
+    assert str(msg.value) == "Data type 'int' is not supported."
 
     with pytest.raises(TypeError) as msg:
         kitty.tensor(1, dtype=float)
-    assert str(msg.value) == "Data type 'float' is not supported"
+    assert str(msg.value) == "Data type 'float' is not supported."
 
     with pytest.raises(TypeError) as msg:
         kitty.tensor(1, dtype=np.int64)
-    assert str(msg.value) == "Data type 'int64' is not supported"
+    assert str(msg.value) == "Data type 'int64' is not supported."
 
     with pytest.raises(TypeError) as msg:
         kitty.tensor(1, dtype=np.longlong)
-    assert str(msg.value) == "Data type 'longlong' is not supported"
+    assert str(msg.value) == "Data type 'longlong' is not supported."
 
     tensor = kitty.tensor([1, 1])  # kitty.float32
 
     with pytest.raises(TypeError) as msg:
         tensor.grad = 0
-    assert str(msg.value) == "Assigned grad expected to be a Tensor or None but got grad of 'int'"
+    assert str(msg.value) == "Assigned grad expected to be a Tensor or None but got grad of 'int'."
 
     with pytest.raises(TypeError) as msg:
         tensor.grad = np.array([0, 0], dtype=np.float32)
-    assert str(msg.value) == "Assigned grad expected to be a Tensor or None but got grad of 'ndarray'"
+    assert str(msg.value) == "Assigned grad expected to be a Tensor or None but got grad of 'ndarray'."
 
     with pytest.raises(RuntimeError) as msg:
         tensor.grad = tensor
-    assert str(msg.value) == "Can't assign Variable as its own grad"
+    assert str(msg.value) == "Can't assign Variable as its own grad."
 
     with pytest.raises(TypeError) as msg:
         tensor.grad = kitty.tensor([-1, 0], dtype=kitty.double)
-    assert str(msg.value) == "Assigned grad has data of a different type"
+    assert str(msg.value) == "Assigned grad has data of a different type."
 
     with pytest.raises(RuntimeError) as msg:
         tensor.grad = kitty.tensor([[-1, 0]])
-    assert str(msg.value) == "Assigned grad has data of a different size"
+    assert str(msg.value) == "Assigned grad has data of a different size."
 
     with pytest.warns(UserWarning,
                       match="Trying to assign a gradient to a tensor that doesn't need it. "
-                            "The requires_grad attribute is set to True"):
+                            "The requires_grad attribute is set to True."):
         tensor.grad = kitty.tensor([0.9, -0.5], dtype=kitty.float)
 
     tensor.grad = None
@@ -133,32 +133,32 @@ def test_arithmetics():  # TODO: not only exceptions, but also correctness of th
 
     with pytest.raises(TypeError) as msg:
         tensor + (1 + 1j)
-    assert str(msg.value) == "Unsupported operand type(s) for +: 'Tensor' and 'complex'"
+    assert str(msg.value) == "Unsupported operand type(s) for +: 'Tensor' and 'complex'."
 
     with pytest.raises(TypeError) as msg:
         (1 + 1j) * tensor
-    assert str(msg.value) == "Unsupported operand type(s) for *: 'complex' and 'Tensor'"
+    assert str(msg.value) == "Unsupported operand type(s) for *: 'complex' and 'Tensor'."
 
     with pytest.raises(TypeError) as msg:
         tensor + None
-    assert str(msg.value) == "Unsupported operand type(s) for +: 'Tensor' and 'NoneType'"
+    assert str(msg.value) == "Unsupported operand type(s) for +: 'Tensor' and 'NoneType'."
 
     with pytest.raises(NotImplementedError) as msg:
         np.array(2, dtype=np.int8) + tensor
-    assert str(msg.value) == "Unsupported operation with NumPy array. Try swapping operands"
+    assert str(msg.value) == "Unsupported operation with NumPy array. Try swapping operands."
     tensor + np.array(2, dtype=np.int8)  # it's ok, auto cast
 
     with pytest.raises(TypeError) as msg:
         kitty.tensor(0, dtype=kitty.half) * tensor
-    assert str(msg.value) == "Operands type mismatch: float16 != float32"
+    assert str(msg.value) == "Operands type mismatch: float16 != float32."
 
     with pytest.raises(RuntimeError) as msg:
         kitty.tensor([[1, 1]]) * kitty.tensor([[1], [1]])  # :(
-    assert str(msg.value) == "The size of tensor a (1, 2) must match the size of tensor b (2, 1)"
+    assert str(msg.value) == "The size of tensor a (1, 2) must match the size of tensor b (2, 1)."
 
     with pytest.raises(RuntimeError) as msg:
         kitty.tensor([[1], [1]]) + kitty.tensor(0)
-    assert str(msg.value) == "The size of tensor a (2, 1) must match the size of tensor b ()"
+    assert str(msg.value) == "The size of tensor a (2, 1) must match the size of tensor b ()."
 
 
 def test_indexing():
