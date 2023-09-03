@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import typing
+
 import kittygrad.func as func
 from .autograd import FnBackward, check_locks
 from .constants import *
@@ -7,16 +9,16 @@ from .utils import flatten
 
 import numpy as np
 
-import typing
 import warnings
 from functools import wraps
 
+np.set_printoptions(precision=4)
 warnings.simplefilter('always', UserWarning)
 
 
 class Tensor:
     def __init__(self, data, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
-        if isinstance(data, np.ndarray):
+        if isinstance(data, np.ndarray) and dtype is None:
             if data.dtype not in ALL_DTYPES:
                 self._data = data.astype(DEFAULT_DTYPE)
             else:
@@ -74,7 +76,7 @@ class Tensor:
         return tensor(self._data)
 
     @property  # not writable
-    def shape(self) -> tuple[int, ...]:
+    def shape(self) -> Size:
         return self._data.shape
 
     @property  # not writable
@@ -205,61 +207,74 @@ class Tensor:
         return self
 
     def __neg__(self) -> Tensor:
-        return func._neg(self)[0]
+        return func._neg(self)
 
     def exp(self) -> Tensor:
-        return func._exp(self)[0]
+        return func._exp(self)
+
+    def log(self) -> Tensor:
+        return func._log(self)
 
     def sigmoid(self) -> Tensor:
-        return func._sigmoid(self)[0]
+        return func._sigmoid(self)
 
     def tanh(self) -> Tensor:
-        return func._tanh(self)[0]
+        return func._tanh(self)
 
     def relu(self) -> Tensor:
-        return func._relu(self)[0]
+        return func._relu(self)
 
     @__operator_handler(op_symbol='+')
-    def __add__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._add(self, other)[0]
+    def __add__(self, other: Operand) -> Tensor:
+        return func._add(self, other)
 
     @__operator_handler(op_symbol='+', reverse=True)
-    def __radd__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._add(self, other)[0]
+    def __radd__(self, other: Operand) -> Tensor:
+        return func._add(self, other)
 
     @__operator_handler(op_symbol='-')
-    def __sub__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._sub(self, other)[0]
+    def __sub__(self, other: Operand) -> Tensor:
+        return func._sub(self, other)
 
     @__operator_handler(op_symbol='-', reverse=True)
-    def __rsub__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._sub(other, self)[0]
+    def __rsub__(self, other: Operand) -> Tensor:
+        return func._sub(other, self)
 
     @__operator_handler(op_symbol='*')
-    def __mul__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._mul(self, other)[0]
+    def __mul__(self, other: Operand) -> Tensor:
+        return func._mul(self, other)
 
     @__operator_handler(op_symbol='*', reverse=True)
-    def __rmul__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._mul(self, other)[0]
+    def __rmul__(self, other: Operand) -> Tensor:
+        return func._mul(self, other)
 
     @__operator_handler(op_symbol='/')
-    def __truediv__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._div(self, other)[0]
+    def __truediv__(self, other: Operand) -> Tensor:
+        return func._div(self, other)
 
     @__operator_handler(op_symbol='/', reverse=True)
-    def __rtruediv__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._div(other, self)[0]
+    def __rtruediv__(self, other: Operand) -> Tensor:
+        return func._div(other, self)
 
     @__operator_handler(op_symbol='**')
-    def __pow__(self, power: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._pow(self, power)[0]
+    def __pow__(self, power: Operand) -> Tensor:
+        return func._pow(self, power)
 
     @__operator_handler(op_symbol='**', reverse=True)
-    def __rpow__(self, power: Scalar | np.ndarray | Tensor) -> Tensor:
-        return func._pow(power, self)[0]
+    def __rpow__(self, power: Operand) -> Tensor:
+        return func._pow(power, self)
 
     # ====================================================== View ======================================================
+
+    def transpose(self, dim0: int, dim1: int) -> Tensor:
+        return func._transpose(self, dim0, dim1)
+
+    @property
+    def mT(self) -> Tensor:  # noqa: torch-like API
+        return func._transpose(self, -2, -1)
+
+    def permute(self, dims: Size) -> Tensor:
+        return func._permute(self, dims)
 
     def __getitem__(self, *args, **kwargs) -> Tensor:
         if self._requires_grad:
@@ -315,4 +330,41 @@ class Tensor:
                           "has at least one more output for the .backward() call.")
 
 
+def rand(*size: Size,
+         dtype: type | np.dtype | None = None,
+         requires_grad: bool = False) -> Tensor:
+    return tensor(np.random.rand(*size), dtype, requires_grad)
+
+
+def randn(*size: Size,
+          dtype: type | np.dtype | None = None,
+          requires_grad: bool = False) -> Tensor:
+    return tensor(np.random.randn(*size), dtype, requires_grad)
+
+
+def ones(*size: Size,
+         dtype: type | np.dtype | None = None,
+         requires_grad: bool = False) -> Tensor:
+    return tensor(np.ones(size, dtype), requires_grad=requires_grad)
+
+
+def ones_like(input: Tensor,  # noqa: torch-like API
+              dtype: type | np.dtype | None = None,
+              requires_grad: bool = False) -> Tensor:
+    return tensor(np.ones(input.shape, dtype), requires_grad=requires_grad)
+
+
+def zeros(*size: Size,
+          dtype: type | np.dtype | None = None,
+          requires_grad: bool = False) -> Tensor:
+    return tensor(np.zeros(size, dtype), requires_grad=requires_grad)
+
+
+def zeros_like(input: Tensor,  # noqa: torch-like API
+               dtype: type | np.dtype | None = None,
+               requires_grad: bool = False) -> Tensor:
+    return tensor(np.zeros(input.shape, dtype), requires_grad=requires_grad)
+
+
+Operand = Scalar | np.ndarray | Tensor
 tensor = Tensor

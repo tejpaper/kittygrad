@@ -46,9 +46,10 @@ class AccumulateGrad(BackwardAccess):  # ag short
 
 # TODO: test memory leaks, mb weak pointers are needed
 class FnBackward(BackwardAccess, abc.ABC):  # fn short
-    def __init__(self, ctx: dict[str, list[tsr.Tensor] | tsr.Tensor],
+    def __init__(self,
+                 ctx: DotDict[str, list[typing.Any] | tsr.Tensor],
                  next_functions: list[FnBackward | None]) -> None:
-        self._ctx = DotDict(ctx)
+        self._ctx = ctx
         self._next_functions = next_functions
 
         self._grad = np.zeros_like(self._ctx.out._data)
@@ -100,38 +101,31 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
     def backward_graph_decor(function: typing.Callable) -> typing.Callable:
 
         @wraps(function)
-        def wrapper(*inputs: tsr.Tensor) -> tuple[tsr.Tensor, ...]:
-            out, *activations = function(*inputs)
+        def wrapper(*args: tsr.Tensor) -> tsr.Tensor:
+            ctx = DotDict(saved_tensors=[])
+            out = function(*args, ctx)
 
             if not out.requires_grad:
-                return out,
+                return out
 
+            ctx.out = out
             next_functions = []
 
-            for tensor in inputs:
-                if (tensor_grad_fn := tensor.grad_fn) is not None:
-                    tensor.grad_fn._lock += 1
-                elif tensor.requires_grad and tensor.is_leaf:
-                    tensor_grad_fn = AccumulateGrad(tensor)
+            for arg in args:
+                if not isinstance(arg, tsr.Tensor):
+                    continue
+
+                if (tensor_grad_fn := arg.grad_fn) is not None:
+                    arg.grad_fn._lock += 1
+                elif arg.requires_grad and arg.is_leaf:
+                    tensor_grad_fn = AccumulateGrad(arg)
 
                 next_functions.append(tensor_grad_fn)
 
-            saved_tensors = []  # for version control purposes and efficient gradient calculations
-            saved_arrays = []  # only for efficient gradient calculations
-
-            for activation in activations:
-                if isinstance(activation, np.ndarray):
-                    saved_arrays.append(activation)
-                else:
-                    saved_tensors.append(activation)
-
             out._is_leaf = False
-            out._grad_fn = node(
-                ctx=dict(saved_tensors=saved_tensors, saved_arrays=saved_arrays, out=out),
-                next_functions=next_functions,
-            )
+            out._grad_fn = node(ctx=ctx, next_functions=next_functions)
 
-            return out,
+            return out
 
         return wrapper
     return backward_graph_decor

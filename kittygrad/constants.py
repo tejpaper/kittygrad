@@ -5,3 +5,4 @@ DEFAULT_DTYPE = np.float32
 
 # numbers.Number includes complex numbers
 Scalar = int | float
+Size = tuple[int, ...] | list[int]

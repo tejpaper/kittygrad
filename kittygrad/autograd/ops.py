@@ -14,6 +14,13 @@ class ExpBackward(FnBackward):
         self._next_functions[0].propagate(self._grad)
 
 
+class LogBackward(FnBackward):
+    def _propagate(self) -> None:
+        # log(neg) == nan, but its gradient exists like in torch
+        self._grad /= self._ctx.saved_tensors[0]._data
+        self._next_functions[0].propagate(self._grad)
+
+
 class AddBackward(FnBackward):
     def _propagate(self) -> None:
         for next_fn in self._next_functions:

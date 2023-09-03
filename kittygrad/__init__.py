@@ -1,4 +1,12 @@
-from .tensor import Tensor, tensor
+from .tensor import (
+    Tensor, tensor,
+    rand,
+    randn,
+    ones,
+    ones_like,
+    zeros,
+    zeros_like,
+)
 
 from numpy import float16 as float16
 from numpy import float16 as half
