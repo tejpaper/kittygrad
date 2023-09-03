@@ -74,7 +74,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
         if self._lock > 0:
             return
-        elif self._lock < 0 or not self._next_functions:
+        elif self._lock < 0 or all(next_fn is None for next_fn in self._next_functions):
             raise RuntimeError("Trying to backward through the graph a second time.")
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
@@ -101,7 +101,7 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
 
         @wraps(function)
         def wrapper(*inputs: tsr.Tensor) -> tuple[tsr.Tensor, ...]:
-            out, *saved_tensors = function(*inputs)
+            out, *activations = function(*inputs)
 
             if not out.requires_grad:
                 return out,
@@ -113,14 +113,21 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
                     tensor.grad_fn._lock += 1
                 elif tensor.requires_grad and tensor.is_leaf:
                     tensor_grad_fn = AccumulateGrad(tensor)
-                else:
-                    continue
 
                 next_functions.append(tensor_grad_fn)
 
+            saved_tensors = []  # for version control purposes and efficient gradient calculations
+            saved_arrays = []  # only for efficient gradient calculations
+
+            for activation in activations:
+                if isinstance(activation, np.ndarray):
+                    saved_arrays.append(activation)
+                else:
+                    saved_tensors.append(activation)
+
             out._is_leaf = False
             out._grad_fn = node(
-                ctx=dict(saved_tensors=saved_tensors, out=out),
+                ctx=dict(saved_tensors=saved_tensors, saved_arrays=saved_arrays, out=out),
                 next_functions=next_functions,
             )
 
@@ -131,7 +138,7 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
 
 
 def check_locks(head: FnBackward) -> bool:
-    visited = set()
+    visited = {None}
     queue = {head}
 
     while queue:

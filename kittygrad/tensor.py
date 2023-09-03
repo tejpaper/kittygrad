@@ -201,6 +201,15 @@ class Tensor:
 
     # ====================================================== Func ======================================================
 
+    def __pos__(self) -> Tensor:
+        return self
+
+    def __neg__(self) -> Tensor:
+        return func._neg(self)[0]
+
+    def exp(self) -> Tensor:
+        return func._exp(self)[0]
+
     def sigmoid(self) -> Tensor:
         return func._sigmoid(self)[0]
 
@@ -218,6 +227,14 @@ class Tensor:
     def __radd__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
         return func._add(self, other)[0]
 
+    @__operator_handler(op_symbol='-')
+    def __sub__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
+        return func._sub(self, other)[0]
+
+    @__operator_handler(op_symbol='-', reverse=True)
+    def __rsub__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
+        return func._sub(other, self)[0]
+
     @__operator_handler(op_symbol='*')
     def __mul__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
         return func._mul(self, other)[0]
@@ -225,6 +242,22 @@ class Tensor:
     @__operator_handler(op_symbol='*', reverse=True)
     def __rmul__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
         return func._mul(self, other)[0]
+
+    @__operator_handler(op_symbol='/')
+    def __truediv__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
+        return func._div(self, other)[0]
+
+    @__operator_handler(op_symbol='/', reverse=True)
+    def __rtruediv__(self, other: Scalar | np.ndarray | Tensor) -> Tensor:
+        return func._div(other, self)[0]
+
+    @__operator_handler(op_symbol='**')
+    def __pow__(self, power: Scalar | np.ndarray | Tensor) -> Tensor:
+        return func._pow(self, power)[0]
+
+    @__operator_handler(op_symbol='**', reverse=True)
+    def __rpow__(self, power: Scalar | np.ndarray | Tensor) -> Tensor:
+        return func._pow(power, self)[0]
 
     # ====================================================== View ======================================================
 
@@ -265,6 +298,9 @@ class Tensor:
         if self._is_leaf:
             self.grad = gradient
             return
+
+        if self.shape != gradient.shape:
+            raise RuntimeError("Assigned grad has data of a different size.")
 
         if self._grad_fn._lock != 0:
             warnings.warn("A .backward() call from the middle of the computational graph was noticed.")

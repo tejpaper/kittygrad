@@ -1,4 +1,4 @@
-from .tensor import tensor
+from .tensor import Tensor, tensor
 
 from numpy import float16 as float16
 from numpy import float16 as half
