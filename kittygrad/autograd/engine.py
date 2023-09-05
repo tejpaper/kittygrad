@@ -52,7 +52,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         self._ctx = ctx
         self._next_functions = next_functions
 
-        self._grad = np.zeros_like(self._ctx.out._data)
+        self._grad = np.zeros_like(self._ctx.out._data)  # TODO: test dtypes
         self._lock = 0  # instead of topological sort
 
         self._versions = DotDict(
@@ -66,7 +66,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
     @abc.abstractmethod
     def _propagate(self) -> None:
-        pass
+        pass  # self._grad can be changed here as there is a hook before it
 
     def propagate(self, prev_grad: np.ndarray) -> None:
         assert id(self._grad) != id(prev_grad)  # TODO: remove me after a bunch of tests
@@ -83,18 +83,18 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
                 raise RuntimeError("One of the variables needed for gradient computation "
                                    "has been modified by an inplace operation.")
 
+        # hook
+        if self._ctx.out.retains_grad:
+            if self._ctx.out._version == self._versions.out:
+                self._ctx.out._grad = np.copy(self._grad)  # no ref to avoid bugs
+            else:
+                warnings.warn("An attempt to assign a gradient to a tensor with retains_grad=True "
+                              "and modified by inplace operation was noticed.")
+
         self._propagate()
 
         # cut off
         self._ctx.out._grad_fn = None
-
-        # hook
-        if self._ctx.out.retains_grad:
-            if self._ctx.out._version == self._versions.out:
-                self._ctx.out._grad = self._grad
-            else:
-                warnings.warn("An attempt to assign a gradient to a tensor with retains_grad=True "
-                              "and modified by inplace operation was noticed.")
 
 
 def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:

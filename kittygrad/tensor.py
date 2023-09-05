@@ -187,6 +187,7 @@ class Tensor:
                                 .format(op_symbol, type(first_operand).__name__, type(second_operand).__name__))
 
             return handler
+
         return handler_decor
 
     @staticmethod
@@ -196,8 +197,10 @@ class Tensor:
             if self._is_leaf and self._requires_grad:
                 raise RuntimeError("A leaf Variable that requires grad is being used in an in-place operation.")
 
+            self = method(self, *args, **kwargs)
             self._version += 1
-            return method(self, *args, **kwargs)
+
+            return self
 
         return wrapper
 
@@ -264,6 +267,18 @@ class Tensor:
     def __rpow__(self, power: Operand) -> Tensor:
         return func._pow(power, self)
 
+    def sum(self, dim: int | Size | None = None, keepdim: bool = False) -> Tensor:
+        return func._sum(self, dim, keepdim)
+
+    def mean(self, dim: int | Size | None = None, keepdim: bool = False) -> Tensor:
+        return func._mean(self, dim, keepdim)
+
+    # ================================================== Inplace Func ==================================================
+
+    @__inplace_operation
+    def __iadd__(self, other: Operand) -> Tensor:
+        return self + other  # TODO: bug (see main.py)
+
     # ====================================================== View ======================================================
 
     def transpose(self, dim0: int, dim1: int) -> Tensor:
@@ -275,6 +290,12 @@ class Tensor:
 
     def permute(self, dims: Size) -> Tensor:
         return func._permute(self, dims)
+
+    def squeeze(self, dim: int | Size | None = None) -> Tensor:
+        return func._squeeze(self, dim)
+
+    def unsqueeze(self, dim: int | Size) -> Tensor:
+        return func._unsqueeze(self, dim)
 
     def __getitem__(self, *args, **kwargs) -> Tensor:
         if self._requires_grad:
@@ -293,6 +314,9 @@ class Tensor:
             self._data.__setitem__(key, value)
 
     # ================================================== Interaction ===================================================
+
+    def nelement(self) -> int:
+        return self._data.size
 
     def detach(self):  # unlike torch makes a full copy of a tensor
         return tensor(np.copy(self._data))
@@ -333,18 +357,24 @@ class Tensor:
 def rand(*size: Size,
          dtype: type | np.dtype | None = None,
          requires_grad: bool = False) -> Tensor:
+    if dtype is None:
+        dtype = DEFAULT_DTYPE
     return tensor(np.random.rand(*size), dtype, requires_grad)
 
 
 def randn(*size: Size,
           dtype: type | np.dtype | None = None,
           requires_grad: bool = False) -> Tensor:
+    if dtype is None:
+        dtype = DEFAULT_DTYPE
     return tensor(np.random.randn(*size), dtype, requires_grad)
 
 
 def ones(*size: Size,
          dtype: type | np.dtype | None = None,
          requires_grad: bool = False) -> Tensor:
+    if dtype is None:
+        dtype = DEFAULT_DTYPE
     return tensor(np.ones(size, dtype), requires_grad=requires_grad)
 
 
@@ -357,12 +387,16 @@ def ones_like(input: Tensor,  # noqa: torch-like API
 def zeros(*size: Size,
           dtype: type | np.dtype | None = None,
           requires_grad: bool = False) -> Tensor:
+    if dtype is None:
+        dtype = DEFAULT_DTYPE
     return tensor(np.zeros(size, dtype), requires_grad=requires_grad)
 
 
 def zeros_like(input: Tensor,  # noqa: torch-like API
                dtype: type | np.dtype | None = None,
                requires_grad: bool = False) -> Tensor:
+    if dtype is None:
+        dtype = DEFAULT_DTYPE
     return tensor(np.zeros(input.shape, dtype), requires_grad=requires_grad)
 
 

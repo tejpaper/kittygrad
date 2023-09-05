@@ -21,9 +21,20 @@ def inv_permutation(permutation:  Size) -> Size:
     return inv.tolist()
 
 
-def check_dim(ndim: int, dim: int) -> None:
+def check_dim(dim: int, ndim: int) -> None:
     min_dim, max_dim = sorted([-ndim, ndim - 1])
     if not min_dim <= dim <= max_dim:
         raise IndexError("Dimension out of range (expected to be in range of [{}, {}], but got {})."
                          .format(min_dim, max_dim, dim))
 
+
+def check_dims(dims: int | Size | None, ndim: int) -> None:
+    if dims is None:
+        return
+    elif isinstance(dims, int):
+        dims = [dims]
+    elif len(set(dims)) != len(dims):
+        raise RuntimeError("Duplicate dims are not allowed.")
+
+    for dim in dims:
+        check_dim(dim, ndim)
