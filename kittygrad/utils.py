@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import kittygrad.tensor as tsr
 from .constants import *
 
 
@@ -7,7 +10,7 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
-def flatten(x: list) -> list:
+def flatten(x: list | Scalar) -> list:
     return sum(map(flatten, x), []) if isinstance(x, list) else [x]
 
 
@@ -19,6 +22,12 @@ def inv_permutation(permutation:  Size) -> Size:
     inv = np.empty_like(permutation)
     inv[permutation] = np.arange(len(inv), dtype=inv.dtype)
     return inv.tolist()
+
+
+def check_types(tensor: tsr.Tensor, other: tsr.Tensor) -> None:
+    if tensor.dtype != other.dtype:
+        raise TypeError("Operands type mismatch: {} != {}."
+                        .format(tensor.dtype, other.dtype))
 
 
 def check_dim(dim: int, ndim: int) -> None:

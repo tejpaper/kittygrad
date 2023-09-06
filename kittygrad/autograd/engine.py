@@ -37,6 +37,8 @@ class AccumulateGrad(BackwardAccess):  # ag short
             raise RuntimeError(f"The size of tensor {self._tensor.shape} "
                                f"must match the size of its gradient {grad.shape}.")
 
+        assert self._tensor.dtype == grad.dtype  # TODO: remove me after a bunch of tests
+
         if self._tensor._grad is None:
             self._tensor._grad = grad
         else:
@@ -52,12 +54,15 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         self._ctx = ctx
         self._next_functions = next_functions
 
-        self._grad = np.zeros_like(self._ctx.out._data)  # TODO: test dtypes
+        self._grad = np.zeros_like(self._ctx.out._data)
         self._lock = 0  # instead of topological sort
 
         self._versions = DotDict(
             out=self._ctx.out._version,
-            saved_tensors=[tensor._version for tensor in self._ctx.saved_tensors]
+            saved_tensors=[
+                tensor._version if tensor is not None else 0
+                for tensor in self._ctx.saved_tensors
+            ],
         )
 
     @property  # not writable
@@ -79,7 +84,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
             raise RuntimeError("Trying to backward through the graph a second time.")
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
-            if tensor._version != old_version:
+            if tensor is not None and tensor._version != old_version:
                 raise RuntimeError("One of the variables needed for gradient computation "
                                    "has been modified by an inplace operation.")
 

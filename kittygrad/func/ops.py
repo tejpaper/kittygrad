@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import kittygrad.tensor as tsr
 from ..autograd import (
     backward_graph,
     NegBackward,
@@ -14,6 +13,8 @@ from ..autograd import (
     SumBackward,
     MeanBackward,
     DotBackward,
+    MmBackward,
+    MvBackward,
 )
 from ..utils import *
 
@@ -24,7 +25,6 @@ import numpy as np
 def _neg(tensor: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=-tensor._data,
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
@@ -33,7 +33,6 @@ def _neg(tensor: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
 def _exp(tensor: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=np.exp(tensor._data),
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
@@ -43,7 +42,6 @@ def _log(tensor: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
     ctx.saved_tensors.append(tensor)
     return tsr.tensor(
         data=np.log(tensor._data),
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
@@ -52,7 +50,6 @@ def _log(tensor: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
 def _add(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=tensor._data + other._data,
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
@@ -61,17 +58,19 @@ def _add(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr
 def _sub(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=tensor._data - other._data,
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
 @backward_graph(MulBackward)
 def _mul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
-    ctx.saved_tensors.extend([tensor, other])
+    # avoiding version control if it's not needed
+    ctx.saved_tensors.extend([
+        tensor if other.requires_grad else None,
+        other if tensor.requires_grad else None,
+    ])
     return tsr.tensor(
         data=tensor._data * other._data,
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
@@ -83,17 +82,18 @@ def _div(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.
     ctx.saved_arrays = [other_inv]
     return tsr.tensor(
         data=tensor._data * other_inv,
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
 @backward_graph(PowBackward)
 def _pow(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
-    ctx.saved_tensors.extend([tensor, other])
+    ctx.saved_tensors.extend([
+        tensor,  # always needed
+        other if tensor.requires_grad else None,
+    ])
     return tsr.tensor(
         data=tensor._data ** other._data,
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
@@ -107,7 +107,6 @@ def _sum(tensor: tsr.Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict
     ctx.keepdim = keepdim
     return tsr.tensor(
         data=np.sum(tensor._data, axis=dim, keepdims=keepdim),
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
@@ -121,30 +120,93 @@ def _mean(tensor: tsr.Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDic
     ctx.keepdim = keepdim
     return tsr.tensor(
         data=np.mean(tensor._data, axis=dim, keepdims=keepdim),
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
 
 @backward_graph(DotBackward)
 def _dot(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
-    ctx.saved_tensors.extend([tensor, other])
+    ctx.saved_tensors.extend([
+        tensor if other.requires_grad else None,
+        other if tensor.requires_grad else None,
+    ])
     return tsr.tensor(
         data=np.dot(tensor._data, other._data),
-        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
 def dot(input: tsr.Tensor, other: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API
+    check_types(input, other)
+
     if input.ndim != 1 or other.ndim != 1:
         raise RuntimeError(f"1D tensors expected, but got {input.ndim}D and {other.ndim}D tensors.")
-    elif input.dtype != other.dtype:
-        raise TypeError("Operands type mismatch: {} != {}."
-                        .format(input.dtype, other.dtype))
     elif input.nelement() != other.nelement():
         raise RuntimeError("Inconsistent tensor size, expected tensor input and other to have "
                            "the same number of elements, but got {} and {} elements respectively."
                            .format(input.nelement(), other.nelement()))
 
     return _dot(input, other)
+
+
+@backward_graph(MmBackward)
+def _mm(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
+    ctx.saved_tensors.extend([
+        tensor if other.requires_grad else None,
+        other if tensor.requires_grad else None,
+    ])
+    return tsr.tensor(
+        data=np.matmul(tensor._data, other._data),
+        requires_grad=tensor.requires_grad or other.requires_grad,
+    )
+
+
+def mm(input: tsr.Tensor, mat2: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API
+    check_types(input, mat2)
+
+    if input.ndim != 2 or mat2.ndim != 2:
+        raise RuntimeError(f"2D tensors expected, but got {input.ndim}D and {mat2.ndim}D tensors.")
+    elif input.shape[-1] != mat2.shape[0]:
+        raise RuntimeError("input and mat2 shapes cannot be multiplied ({}x{} and {}x{})."
+                           .format(*input.shape, *mat2.shape))
+
+    return _mm(input, mat2)
+
+
+@backward_graph(MvBackward)
+def _mv(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
+    ctx.saved_tensors.extend([
+        tensor if other.requires_grad else None,
+        other if tensor.requires_grad else None,
+    ])
+    return tsr.tensor(
+        data=np.matmul(tensor._data, other._data),
+        requires_grad=tensor.requires_grad or other.requires_grad,
+    )
+
+
+def mv(input: tsr.Tensor, vec: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API
+    check_types(input, vec)
+
+    if input.ndim != 2:
+        raise RuntimeError(f"input must be a matrix, not a {input.ndim}D tensor.")
+    elif vec.ndim != 1:
+        raise RuntimeError(f"vec must be a vector, not a {vec.ndim}D tensor.")
+    elif input.shape[-1] != vec.nelement():
+        raise RuntimeError("input and vec shapes cannot be multiplied ({}x{} and {})."
+                           .format(*input.shape, vec.nelement()))
+
+    return _mv(input, vec)
+
+
+def matmul(input: tsr.Tensor, other: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API
+    if input.ndim == 1 and other.ndim == 1:
+        return dot(input, other)
+    elif input.ndim == 2 and other.ndim == 2:
+        return mm(input, other)
+    elif input.ndim == 1 and other.ndim == 2:
+        return mm(input.unsqueeze(0), other).squeeze(0)
+    elif input.ndim == 2 and other.ndim == 1:
+        return mv(input, other)
+
+    pass  # TODO: + exceptions

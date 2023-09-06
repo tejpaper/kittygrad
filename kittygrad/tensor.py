@@ -5,7 +5,12 @@ import typing
 import kittygrad.func as func
 from .autograd import FnBackward, check_locks
 from .constants import *
-from .utils import flatten
+from .utils import (
+    flatten,
+    check_types,
+    check_dim,
+    check_dims,
+)
 
 import numpy as np
 
@@ -18,18 +23,35 @@ warnings.simplefilter('always', UserWarning)
 
 class Tensor:
     def __init__(self, data, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
-        if isinstance(data, np.ndarray) and dtype is None:
-            if data.dtype not in ALL_DTYPES:
-                self._data = data.astype(DEFAULT_DTYPE)
-            else:
-                self._data = data
+        if type(data) == type(self):
+            raise RuntimeError("If you want to create a new tensor from another, use "
+                               "sourceTensor.detach() and then specify the requires_grad attribute.")
 
-        elif dtype is None and ((dtype := np.result_type(*flatten(data))) not in ALL_DTYPES or dtype == np.float_):
-            self._data = np.array(data, DEFAULT_DTYPE)
-        elif dtype not in ALL_DTYPES:
+        is_ndarray = isinstance(data, np.ndarray)
+        dtype_unknown = dtype is None
+
+        if dtype_unknown:
+            if not is_ndarray:
+                dtype = np.result_type(*flatten(data))
+                if dtype == np.float_:
+                    dtype = DEFAULT_DTYPE
+            else:
+                dtype = data.dtype
+
+        supported_dtype = dtype in ALL_DTYPES
+
+        # TODO: test
+        if not dtype_unknown and not supported_dtype:
             raise TypeError(f"Data type '{dtype.__name__}' is not supported.")
-        else:
+        elif dtype_unknown and not supported_dtype:
+            if is_ndarray:
+                warnings.warn(f"Passed NumPy array has an unsupported data type. "
+                              f"Created a copy based on '{DEFAULT_DTYPE.__name__}' dtype.")
+            self._data = np.array(data, DEFAULT_DTYPE)
+        elif supported_dtype and (not is_ndarray or not dtype_unknown):
             self._data = np.array(data, dtype)
+        else:
+            self._data = data
 
         self._requires_grad = requires_grad
         self._grad = None
@@ -174,10 +196,9 @@ class Tensor:
                     first_operand, second_operand = self, other
 
                 if type(other) == type(self):
-                    if other.dtype != self.dtype:
-                        raise TypeError("Operands type mismatch: {} != {}."
-                                        .format(first_operand.dtype, second_operand.dtype))
-                    elif other.shape != self.shape:  # TODO: broadcasting
+                    check_types(first_operand, second_operand)
+
+                    if other.shape != self.shape:  # TODO: broadcasting
                         raise RuntimeError("The size of tensor a {} must match the size of tensor b {}."
                                            .format(first_operand.shape, second_operand.shape))
 
@@ -187,18 +208,25 @@ class Tensor:
                                 .format(op_symbol, type(first_operand).__name__, type(second_operand).__name__))
 
             return handler
-
         return handler_decor
 
     @staticmethod
-    def __inplace_operation(method: typing.Callable) -> typing.Callable:
+    def __inplace_operation(method: typing.Callable) -> typing.Callable:  # TODO: test
+
         @wraps(method)
         def wrapper(self, *args, **kwargs):
             if self._is_leaf and self._requires_grad:
                 raise RuntimeError("A leaf Variable that requires grad is being used in an in-place operation.")
 
-            self = method(self, *args, **kwargs)
-            self._version += 1
+            out = method(self, *args, **kwargs)
+
+            if out is None:
+                self._version += 1
+            else:
+                out._version = self._version + 1
+                for attr, value in vars(out).items():
+                    setattr(self, attr, value)
+                # self._data = out._data
 
             return self
 
@@ -275,27 +303,49 @@ class Tensor:
 
     # ================================================== Inplace Func ==================================================
 
-    @__inplace_operation
-    def __iadd__(self, other: Operand) -> Tensor:
-        return self + other  # TODO: bug (see main.py)
+    __iadd__ = __inplace_operation(__add__)
+    __isub__ = __inplace_operation(__sub__)
+    __imul__ = __inplace_operation(__mul__)
+    __itruediv__ = __inplace_operation(__truediv__)
+    __ipow__ = __inplace_operation(__pow__)
 
     # ====================================================== View ======================================================
 
     def transpose(self, dim0: int, dim1: int) -> Tensor:
+        if self.ndim == 0:
+            raise RuntimeError("Scalar cannot be transposed.")
+
+        check_dim(dim0, self.ndim)
+        check_dim(dim1, self.ndim)
+
         return func._transpose(self, dim0, dim1)
 
     @property
     def mT(self) -> Tensor:  # noqa: torch-like API
-        return func._transpose(self, -2, -1)
+        return self.transpose(-2, -1)
 
     def permute(self, dims: Size) -> Tensor:
+        if self.ndim != len(dims):
+            raise RuntimeError("Number of dimensions in the tensor input does not match "
+                               "the length of the desired ordering of dimensions i.e. "
+                               f"input.dim() = {self.ndim} is not equal to len(dims) = {len(dims)}.")
+        else:
+            check_dims(dims, self.ndim)
+
         return func._permute(self, dims)
 
     def squeeze(self, dim: int | Size | None = None) -> Tensor:
+        check_dims(dim, self.ndim)
         return func._squeeze(self, dim)
 
     def unsqueeze(self, dim: int | Size) -> Tensor:
+        check_dims(dim, self.ndim)
         return func._unsqueeze(self, dim)
+
+    def expand(self, *sizes: int | Size) -> Tensor:
+        # TODO: exceptions
+
+        return func._expand(self, sizes)
 
     def __getitem__(self, *args, **kwargs) -> Tensor:
         if self._requires_grad:

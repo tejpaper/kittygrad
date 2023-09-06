@@ -17,6 +17,7 @@ class ExpBackward(FnBackward):
 
 class LogBackward(FnBackward):
     def _propagate(self) -> None:
+        # TODO: ref
         # log(neg) == nan, but its gradient exists like in torch
         self._grad /= self._ctx.saved_tensors[0]._data
         self._next_functions[0].propagate(self._grad)
@@ -109,4 +110,30 @@ class MeanBackward(SumBackward):  # SumBackward + MulBackward
 
 
 class DotBackward(MulBackward):
-    pass
+    pass  # exactly the same as MulBackward due to numpy self._grad autocast
+
+
+class MmBackward(FnBackward):
+    def _propagate(self) -> None:
+        factor_1, factor_2 = self._ctx.saved_tensors
+        fn_1, fn_2 = self._next_functions
+
+        if fn_1 is not None:
+            fn_1.propagate(np.matmul(self._grad, factor_2._data.T))
+
+        if fn_2 is not None:
+            fn_2.propagate(np.matmul(factor_1._data.T, self._grad))
+
+
+class MvBackward(FnBackward):
+    def _propagate(self) -> None:
+        factor_1, factor_2 = self._ctx.saved_tensors
+        fn_1, fn_2 = self._next_functions
+
+        if fn_1 is not None:
+            # the only difference with MmBackward is the appropriate operands shapes here
+            fn_1.propagate(np.matmul(self._grad[..., np.newaxis], factor_2._data[np.newaxis, ...]))
+
+        if fn_2 is not None:
+            fn_2.propagate(np.matmul(factor_1._data.T, self._grad))
+

@@ -7,7 +7,12 @@ from .tensor import (
     zeros,
     zeros_like,
 )
-from .func import dot
+from .func import (
+    dot,
+    mm,
+    mv,
+    matmul,
+)
 
 from numpy import float16 as float16
 from numpy import float16 as half

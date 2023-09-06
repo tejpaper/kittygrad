@@ -23,3 +23,8 @@ class SqueezeBackward(FnBackward):
 class UnsqueezeBackward(FnBackward):
     def _propagate(self) -> None:
         self._next_functions[0].propagate(self._grad.squeeze(self._ctx.dim))
+
+
+class ExpandBackward(FnBackward):
+    def _propagate(self) -> None:
+        pass
