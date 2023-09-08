@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import typing
+from collections.abc import Iterable
+
 import kittygrad.tensor as tsr
 from .constants import *
 
@@ -10,8 +13,13 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
-def flatten(x: list | Scalar) -> list:
-    return sum(map(flatten, x), []) if isinstance(x, list) else [x]
+def inplace_modification_error() -> typing.NoReturn:
+    raise RuntimeError("One of the variables needed for gradient computation "
+                       "has been modified by an inplace operation.")
+
+
+def flatten(x: tuple[int, ...] | list[int] | Scalar) -> list:
+    return sum(map(flatten, x), []) if isinstance(x, Iterable) else [x]
 
 
 def inv_permutation(permutation:  Size) -> Size:
@@ -37,12 +45,16 @@ def check_dim(dim: int, ndim: int) -> None:
                          .format(min_dim, max_dim, dim))
 
 
+def normalize_dims(dims: Size, ndim: int) -> Size:
+    return [dim + ndim if dim < 0 else dim for dim in dims]
+
+
 def check_dims(dims: int | Size | None, ndim: int) -> None:
     if dims is None:
         return
     elif isinstance(dims, int):
         dims = [dims]
-    elif len(set(dims)) != len(dims):
+    elif len(set(normalize_dims(dims, ndim))) != len(dims):
         raise RuntimeError("Duplicate dims are not allowed.")
 
     for dim in dims:

@@ -4,7 +4,7 @@ import typing
 
 # creepy alias to avoid circular imports and provide normal variable names
 import kittygrad.tensor as tsr
-from ..utils import DotDict
+from ..utils import DotDict, inplace_modification_error
 
 import numpy as np
 
@@ -15,7 +15,7 @@ from functools import wraps
 
 class BackwardAccess(abc.ABC):  # ba short
     @abc.abstractmethod
-    def propagate(self, prev_grad: np.ndarray) -> None:
+    def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
         pass
 
     def __format__(self, format_spec):
@@ -32,18 +32,18 @@ class AccumulateGrad(BackwardAccess):  # ag short
     def __init__(self, tensor: tsr.Tensor) -> None:
         self._tensor = tensor
 
-    def propagate(self, grad: np.ndarray):
+    def propagate(self, grad: np.ndarray | np.generic) -> None:
+        # TODO: remove us after a bunch of tests
+        assert self._tensor.dtype == grad.dtype
         if self._tensor.shape != grad.shape:
             raise RuntimeError(f"The size of tensor {self._tensor.shape} "
                                f"must match the size of its gradient {grad.shape}.")
 
-        assert self._tensor.dtype == grad.dtype  # TODO: remove me after a bunch of tests
-
         if self._tensor._grad is None:
-            self._tensor._grad = grad
-        else:
-            # += will cause a bug if self._tensor._grad is grad
-            self._tensor._grad = self._tensor._grad + grad
+            self._tensor._grad = np.zeros_like(self._tensor._data)
+
+        # += will cause a bug if self._tensor._grad is grad
+        np.add(self._tensor._grad, grad, out=self._tensor._grad)
 
 
 # TODO: test memory leaks, mb weak pointers are needed
@@ -58,9 +58,9 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         self._lock = 0  # instead of topological sort
 
         self._versions = DotDict(
-            out=self._ctx.out._version,
+            out=self._ctx.out.version,
             saved_tensors=[
-                tensor._version if tensor is not None else 0
+                tensor.version if tensor is not None else 0
                 for tensor in self._ctx.saved_tensors
             ],
         )
@@ -73,7 +73,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
     def _propagate(self) -> None:
         pass  # self._grad can be changed here as there is a hook before it
 
-    def propagate(self, prev_grad: np.ndarray) -> None:
+    def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
         assert id(self._grad) != id(prev_grad)  # TODO: remove me after a bunch of tests
         self._grad += prev_grad
         self._lock -= 1
@@ -84,13 +84,12 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
             raise RuntimeError("Trying to backward through the graph a second time.")
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
-            if tensor is not None and tensor._version != old_version:
-                raise RuntimeError("One of the variables needed for gradient computation "
-                                   "has been modified by an inplace operation.")
+            if tensor is not None and tensor.version != old_version:
+                inplace_modification_error()
 
         # hook
         if self._ctx.out.retains_grad:
-            if self._ctx.out._version == self._versions.out:
+            if self._ctx.out.version == self._versions.out:
                 self._ctx.out._grad = np.copy(self._grad)  # no ref to avoid bugs
             else:
                 warnings.warn("An attempt to assign a gradient to a tensor with retains_grad=True "
@@ -106,9 +105,14 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
     def backward_graph_decor(function: typing.Callable) -> typing.Callable:
 
         @wraps(function)
-        def wrapper(*args: tsr.Tensor) -> tsr.Tensor:
+        def wrapper(*args, inplace: bool = False) -> tsr.Tensor:
             ctx = DotDict(saved_tensors=[])
-            out = function(*args, ctx)
+
+            if inplace:
+                out = function(*args, ctx, inplace=True)
+            else:
+                # most functions do not support inplace flag
+                out = function(*args, ctx)
 
             if not out.requires_grad:
                 return out

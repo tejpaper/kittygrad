@@ -16,6 +16,7 @@ import numpy as np
 
 import warnings
 from functools import wraps
+from ctypes import c_int64 as mutable_int
 
 np.set_printoptions(precision=4)
 warnings.simplefilter('always', UserWarning)
@@ -58,7 +59,7 @@ class Tensor:
         self._grad_fn = None  # points to a node in a backward graph
         self._is_leaf = True
         self._retains_grad = False
-        self._version = 0
+        self._version = mutable_int(0)
 
     # ============================================= Tensor Representation ==============================================
 
@@ -171,6 +172,10 @@ class Tensor:
     def retains_grad(self) -> bool:
         return self._retains_grad
 
+    @property  # not writable
+    def version(self) -> int:
+        return self._version.value
+
     # ================================================= Generalization =================================================
 
     def __array_ufunc__(*args, **kwargs) -> typing.NoReturn:
@@ -202,7 +207,7 @@ class Tensor:
                         raise RuntimeError("The size of tensor a {} must match the size of tensor b {}."
                                            .format(first_operand.shape, second_operand.shape))
 
-                    return operator(self, other)
+                    return operator(self, other, *args, **kwargs)
 
                 raise TypeError("Unsupported operand type(s) for {}: '{}' and '{}'."
                                 .format(op_symbol, type(first_operand).__name__, type(second_operand).__name__))
@@ -212,23 +217,24 @@ class Tensor:
 
     @staticmethod
     def __inplace_operation(method: typing.Callable) -> typing.Callable:  # TODO: test
-
         @wraps(method)
         def wrapper(self, *args, **kwargs):
             if self._is_leaf and self._requires_grad:
                 raise RuntimeError("A leaf Variable that requires grad is being used in an in-place operation.")
 
             out = method(self, *args, **kwargs)
+            self._version.value += 1
+            return out
 
-            if out is None:
-                self._version += 1
-            else:
-                out._version = self._version + 1
-                for attr, value in vars(out).items():
-                    setattr(self, attr, value)
-                # self._data = out._data
+        return wrapper
 
-            return self
+    @staticmethod
+    def __view(method: typing.Callable) -> typing.Callable:
+        @wraps(method)
+        def wrapper(self, *args, **kwargs):
+            new_view = method(self, *args, **kwargs)
+            new_view._version = self._version
+            return new_view
 
         return wrapper
 
@@ -303,14 +309,34 @@ class Tensor:
 
     # ================================================== Inplace Func ==================================================
 
-    __iadd__ = __inplace_operation(__add__)
-    __isub__ = __inplace_operation(__sub__)
-    __imul__ = __inplace_operation(__mul__)
-    __itruediv__ = __inplace_operation(__truediv__)
-    __ipow__ = __inplace_operation(__pow__)
+    @__inplace_operation
+    @__operator_handler(op_symbol='+=')
+    def __iadd__(self, other: Operand) -> Tensor:
+        return func._add(self, other, inplace=True)
+
+    @__inplace_operation
+    @__operator_handler(op_symbol='-=')
+    def __isub__(self, other: Operand) -> Tensor:
+        return func._sub(self, other, inplace=True)
+
+    @__inplace_operation
+    @__operator_handler(op_symbol='*=')
+    def __imul__(self, other: Operand) -> Tensor:
+        return func._mul(self, other, inplace=True)
+
+    @__inplace_operation
+    @__operator_handler(op_symbol='/=')
+    def __itruediv__(self, other: Operand) -> Tensor:
+        return func._div(self, other, inplace=True)
+
+    @__inplace_operation
+    @__operator_handler(op_symbol='**=')
+    def __ipow__(self, other: Operand) -> Tensor:
+        return func._pow(self, other, inplace=True)
 
     # ====================================================== View ======================================================
 
+    @__view
     def transpose(self, dim0: int, dim1: int) -> Tensor:
         if self.ndim == 0:
             raise RuntimeError("Scalar cannot be transposed.")
@@ -324,6 +350,7 @@ class Tensor:
     def mT(self) -> Tensor:  # noqa: torch-like API
         return self.transpose(-2, -1)
 
+    @__view
     def permute(self, dims: Size) -> Tensor:
         if self.ndim != len(dims):
             raise RuntimeError("Number of dimensions in the tensor input does not match "
@@ -334,14 +361,17 @@ class Tensor:
 
         return func._permute(self, dims)
 
+    @__view
     def squeeze(self, dim: int | Size | None = None) -> Tensor:
         check_dims(dim, self.ndim)
         return func._squeeze(self, dim)
 
+    @__view
     def unsqueeze(self, dim: int | Size) -> Tensor:
-        check_dims(dim, self.ndim)
+        check_dims(dim, self.ndim + len(flatten(dim)))
         return func._unsqueeze(self, dim)
 
+    @__view
     def expand(self, *sizes: int | Size) -> Tensor:
         # TODO: exceptions
 
@@ -372,6 +402,9 @@ class Tensor:
         return tensor(np.copy(self._data))
 
     def retain_grad(self) -> None:
+        if not self._requires_grad:
+            raise RuntimeError("Can't retain_grad on Tensor that has requires_grad=False.")
+
         if not self._is_leaf:
             self._retains_grad = True
 

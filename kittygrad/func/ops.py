@@ -47,53 +47,79 @@ def _log(tensor: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
 
 
 @backward_graph(AddBackward)
-def _add(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
+def _add(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
+    if inplace:
+        np.add(tensor._data, other._data, out=tensor._data)
+        tensor._requires_grad |= other.requires_grad
+        return tensor
+
     return tsr.tensor(
-        data=tensor._data + other._data,
+        data=np.add(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
 @backward_graph(SubBackward)
-def _sub(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
+def _sub(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
+    if inplace:
+        np.subtract(tensor._data, other._data, out=tensor._data)
+        tensor._requires_grad |= other.requires_grad
+        return tensor
+
     return tsr.tensor(
-        data=tensor._data - other._data,
+        data=np.subtract(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
 @backward_graph(MulBackward)
-def _mul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
-    # avoiding version control if it's not needed
+def _mul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
     ctx.saved_tensors.extend([
         tensor if other.requires_grad else None,
-        other if tensor.requires_grad else None,
+        other if tensor.requires_grad or (inplace and other.requires_grad) else None,
     ])
+
+    if inplace:
+        np.multiply(tensor._data, other._data, out=tensor._data)
+        tensor._requires_grad |= other.requires_grad
+        return tensor
+
     return tsr.tensor(
-        data=tensor._data * other._data,
+        data=np.multiply(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
 @backward_graph(DivBackward)
-def _div(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
+def _div(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
     other_inv = np.array(1 / other._data)
+    ctx.other_inv = other_inv
 
-    ctx.saved_arrays = [other_inv]
+    if inplace:
+        np.multiply(tensor._data, other_inv, out=tensor._data)
+        tensor._requires_grad |= other.requires_grad
+        return tensor
+
     return tsr.tensor(
-        data=tensor._data * other_inv,
+        data=np.multiply(tensor._data, other_inv),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
 @backward_graph(PowBackward)
-def _pow(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
+def _pow(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
     ctx.saved_tensors.extend([
-        tensor,  # always needed
-        other if tensor.requires_grad else None,
+        tensor,  # always needed (see PowBackward)
+        other if tensor.requires_grad or (inplace and other.requires_grad) else None,
     ])
+
+    if inplace:
+        np.power(tensor._data, other._data, out=tensor._data)
+        tensor._requires_grad |= other.requires_grad
+        return tensor
+
     return tsr.tensor(
-        data=tensor._data ** other._data,
+        data=np.power(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
@@ -174,15 +200,8 @@ def mm(input: tsr.Tensor, mat2: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like A
 
 
 @backward_graph(MvBackward)
-def _mv(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
-    ctx.saved_tensors.extend([
-        tensor if other.requires_grad else None,
-        other if tensor.requires_grad else None,
-    ])
-    return tsr.tensor(
-        data=np.matmul(tensor._data, other._data),
-        requires_grad=tensor.requires_grad or other.requires_grad,
-    )
+def _mv(*args, **kwargs) -> tsr.Tensor:
+    return _mm.__wrapped__(*args, **kwargs)  # DRY
 
 
 def mv(input: tsr.Tensor, vec: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API

@@ -1,5 +1,6 @@
 from .engine import FnBackward
 from ..constants import Size
+from ..utils import inplace_modification_error
 
 import numpy as np
 
@@ -57,17 +58,22 @@ class DivBackward(FnBackward):  # PowBackward + MulBackward
     def _propagate(self) -> None:
         fn_1, fn_2 = self._next_functions
 
-        self._grad *= self._ctx.saved_arrays[0]
+        self._grad *= self._ctx.other_inv
 
         if fn_1 is not None:
             fn_1.propagate(self._grad)
 
         if fn_2 is not None:
+            if self._ctx.out.version != self._versions.out:
+                inplace_modification_error()
             fn_2.propagate(-self._ctx.out._data * self._grad)
 
 
 class PowBackward(FnBackward):
     def _propagate(self) -> None:
+        if self._ctx.out.version != self._versions.out:
+            inplace_modification_error()
+
         factor_1, factor_2 = self._ctx.saved_tensors
         fn_1, fn_2 = self._next_functions
 
@@ -136,4 +142,3 @@ class MvBackward(FnBackward):
 
         if fn_2 is not None:
             fn_2.propagate(np.matmul(factor_1._data.T, self._grad))
-
