@@ -312,27 +312,27 @@ class Tensor:
     @__inplace_operation
     @__operator_handler(op_symbol='+=')
     def __iadd__(self, other: Operand) -> Tensor:
-        return func._add(self, other, inplace=True)
+        return func._iadd(self, other)
 
     @__inplace_operation
     @__operator_handler(op_symbol='-=')
     def __isub__(self, other: Operand) -> Tensor:
-        return func._sub(self, other, inplace=True)
+        return func._isub(self, other)
 
     @__inplace_operation
     @__operator_handler(op_symbol='*=')
     def __imul__(self, other: Operand) -> Tensor:
-        return func._mul(self, other, inplace=True)
+        return func._imul(self, other)
 
     @__inplace_operation
     @__operator_handler(op_symbol='/=')
     def __itruediv__(self, other: Operand) -> Tensor:
-        return func._div(self, other, inplace=True)
+        return func._idiv(self, other)
 
     @__inplace_operation
     @__operator_handler(op_symbol='**=')
     def __ipow__(self, other: Operand) -> Tensor:
-        return func._pow(self, other, inplace=True)
+        return func._ipow(self, other)
 
     # ====================================================== View ======================================================
 

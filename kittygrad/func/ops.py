@@ -8,8 +8,11 @@ from ..autograd import (
     AddBackward,
     SubBackward,
     MulBackward,
+    IMulBackward,
     DivBackward,
+    IDivBackward,
     PowBackward,
+    IPowBackward,
     SumBackward,
     MeanBackward,
     DotBackward,
@@ -47,42 +50,41 @@ def _log(tensor: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
 
 
 @backward_graph(AddBackward)
-def _add(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
-    if inplace:
-        np.add(tensor._data, other._data, out=tensor._data)
-        tensor._requires_grad |= other.requires_grad
-        return tensor
-
+def _add(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=np.add(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
-@backward_graph(SubBackward)
-def _sub(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
-    if inplace:
-        np.subtract(tensor._data, other._data, out=tensor._data)
-        tensor._requires_grad |= other.requires_grad
-        return tensor
+@backward_graph(AddBackward)
+def _iadd(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
+    tensor._requires_grad |= other.requires_grad
+    np.add(tensor._data, other._data, out=tensor._data)
+    return tensor
 
+
+@backward_graph(SubBackward)
+def _sub(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=np.subtract(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
 
 
+@backward_graph(SubBackward)
+def _isub(tensor: tsr.Tensor, other: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
+    tensor._requires_grad |= other.requires_grad
+    np.subtract(tensor._data, other._data, out=tensor._data)
+    return tensor
+
+
 @backward_graph(MulBackward)
-def _mul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
+def _mul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
     ctx.saved_tensors.extend([
         tensor if other.requires_grad else None,
-        other if tensor.requires_grad or (inplace and other.requires_grad) else None,
+        other if tensor.requires_grad else None,
     ])
-
-    if inplace:
-        np.multiply(tensor._data, other._data, out=tensor._data)
-        tensor._requires_grad |= other.requires_grad
-        return tensor
 
     return tsr.tensor(
         data=np.multiply(tensor._data, other._data),
@@ -90,15 +92,23 @@ def _mul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inpl
     )
 
 
+@backward_graph(IMulBackward)
+def _imul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
+    tensor._requires_grad |= other.requires_grad
+
+    ctx.saved_arrays = [
+        np.copy(tensor._data) if other.requires_grad else None,
+        np.copy(other._data) if tensor.requires_grad else None,
+    ]
+
+    np.multiply(tensor._data, other._data, out=tensor._data)
+    return tensor
+
+
 @backward_graph(DivBackward)
-def _div(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
+def _div(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
     other_inv = np.array(1 / other._data)
     ctx.other_inv = other_inv
-
-    if inplace:
-        np.multiply(tensor._data, other_inv, out=tensor._data)
-        tensor._requires_grad |= other.requires_grad
-        return tensor
 
     return tsr.tensor(
         data=np.multiply(tensor._data, other_inv),
@@ -106,22 +116,42 @@ def _div(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inpl
     )
 
 
+@backward_graph(IDivBackward)
+def _idiv(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
+    tensor._requires_grad |= other.requires_grad
+    other_inv = np.array(1 / other._data)
+    np.multiply(tensor._data, other_inv, out=tensor._data)
+
+    ctx.other_inv = other_inv
+    ctx.out_array = np.copy(tensor._data)
+    return tensor
+
+
 @backward_graph(PowBackward)
-def _pow(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list], *, inplace: bool = False) -> tsr.Tensor:
+def _pow(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
     ctx.saved_tensors.extend([
         tensor,  # always needed (see PowBackward)
-        other if tensor.requires_grad or (inplace and other.requires_grad) else None,
+        other if tensor.requires_grad else None,
     ])
-
-    if inplace:
-        np.power(tensor._data, other._data, out=tensor._data)
-        tensor._requires_grad |= other.requires_grad
-        return tensor
 
     return tsr.tensor(
         data=np.power(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
+
+
+@backward_graph(IPowBackward)
+def _ipow(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.Tensor:
+    tensor._requires_grad |= other.requires_grad
+
+    ctx.saved_arrays = [
+        np.copy(tensor._data),  # always needed (see IPowBackward)
+        np.copy(other._data) if tensor.requires_grad else None,
+    ]
+
+    np.power(tensor._data, other._data, out=tensor._data)
+    ctx.out_array = np.copy(tensor._data)
+    return tensor
 
 
 @backward_graph(SumBackward)

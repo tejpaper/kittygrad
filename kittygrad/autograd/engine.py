@@ -105,14 +105,9 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
     def backward_graph_decor(function: typing.Callable) -> typing.Callable:
 
         @wraps(function)
-        def wrapper(*args, inplace: bool = False) -> tsr.Tensor:
+        def wrapper(*args) -> tsr.Tensor:
             ctx = DotDict(saved_tensors=[])
-
-            if inplace:
-                out = function(*args, ctx, inplace=True)
-            else:
-                # most functions do not support inplace flag
-                out = function(*args, ctx)
+            out = function(*args, ctx)
 
             if not out.requires_grad:
                 return out

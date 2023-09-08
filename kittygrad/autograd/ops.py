@@ -54,19 +54,44 @@ class MulBackward(FnBackward):
             fn_2.propagate(factor_1._data * self._grad)
 
 
+class IMulBackward(FnBackward):
+    def _propagate(self) -> None:
+        factor_1, factor_2 = self._ctx.saved_arrays
+        fn_1, fn_2 = self._next_functions
+
+        if fn_1 is not None:
+            fn_1.propagate(factor_2 * self._grad)
+
+        if fn_2 is not None:
+            fn_2.propagate(factor_1 * self._grad)
+
+
 class DivBackward(FnBackward):  # PowBackward + MulBackward
     def _propagate(self) -> None:
-        fn_1, fn_2 = self._next_functions
+        dividend_fn, divisor_fn = self._next_functions
 
         self._grad *= self._ctx.other_inv
 
-        if fn_1 is not None:
-            fn_1.propagate(self._grad)
+        if dividend_fn is not None:
+            dividend_fn.propagate(self._grad)
 
-        if fn_2 is not None:
+        if divisor_fn is not None:
             if self._ctx.out.version != self._versions.out:
                 inplace_modification_error()
-            fn_2.propagate(-self._ctx.out._data * self._grad)
+            divisor_fn.propagate(-self._ctx.out._data * self._grad)
+
+
+class IDivBackward(FnBackward):
+    def _propagate(self) -> None:
+        dividend_fn, divisor_fn = self._next_functions
+
+        self._grad *= self._ctx.other_inv
+
+        if dividend_fn is not None:
+            dividend_fn.propagate(self._grad)
+
+        if divisor_fn is not None:
+            divisor_fn.propagate(-self._ctx.out_array * self._grad)
 
 
 class PowBackward(FnBackward):
@@ -74,16 +99,30 @@ class PowBackward(FnBackward):
         if self._ctx.out.version != self._versions.out:
             inplace_modification_error()
 
-        factor_1, factor_2 = self._ctx.saved_tensors
-        fn_1, fn_2 = self._next_functions
+        base, exponent = self._ctx.saved_tensors
+        base_fn, exponent_fn = self._next_functions
 
         self._grad *= self._ctx.out._data
 
-        if fn_1 is not None:
-            fn_1.propagate(factor_2._data / factor_1._data * self._grad)
+        if base_fn is not None:
+            base_fn.propagate(exponent._data / base._data * self._grad)
 
-        if fn_2 is not None:
-            fn_2.propagate(np.log(factor_1._data) * self._grad)
+        if exponent_fn is not None:
+            exponent_fn.propagate(np.log(base._data) * self._grad)
+
+
+class IPowBackward(FnBackward):
+    def _propagate(self) -> None:
+        base, exponent = self._ctx.saved_arrays
+        base_fn, exponent_fn = self._next_functions
+
+        self._grad *= self._ctx.out_array
+
+        if base_fn is not None:
+            base_fn.propagate(exponent / base * self._grad)
+
+        if exponent_fn is not None:
+            exponent_fn.propagate(np.log(base) * self._grad)
 
 
 class SumBackward(FnBackward):
@@ -121,24 +160,24 @@ class DotBackward(MulBackward):
 
 class MmBackward(FnBackward):
     def _propagate(self) -> None:
-        factor_1, factor_2 = self._ctx.saved_tensors
+        matrix_1, matrix_2 = self._ctx.saved_tensors
         fn_1, fn_2 = self._next_functions
 
         if fn_1 is not None:
-            fn_1.propagate(np.matmul(self._grad, factor_2._data.T))
+            fn_1.propagate(np.matmul(self._grad, matrix_2._data.T))
 
         if fn_2 is not None:
-            fn_2.propagate(np.matmul(factor_1._data.T, self._grad))
+            fn_2.propagate(np.matmul(matrix_1._data.T, self._grad))
 
 
 class MvBackward(FnBackward):
     def _propagate(self) -> None:
-        factor_1, factor_2 = self._ctx.saved_tensors
-        fn_1, fn_2 = self._next_functions
+        matrix, vector = self._ctx.saved_tensors
+        matrix_fn, vector_fn = self._next_functions
 
-        if fn_1 is not None:
+        if matrix_fn is not None:
             # the only difference with MmBackward is the appropriate operands shapes here
-            fn_1.propagate(np.matmul(self._grad[..., np.newaxis], factor_2._data[np.newaxis, ...]))
+            matrix_fn.propagate(np.matmul(self._grad[..., np.newaxis], vector._data[np.newaxis, ...]))
 
-        if fn_2 is not None:
-            fn_2.propagate(np.matmul(factor_1._data.T, self._grad))
+        if vector_fn is not None:
+            vector_fn.propagate(np.matmul(matrix._data.T, self._grad))
