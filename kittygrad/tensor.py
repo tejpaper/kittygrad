@@ -8,8 +8,6 @@ from .constants import *
 from .utils import (
     flatten,
     check_types,
-    check_dim,
-    check_dims,
 )
 
 import numpy as np
@@ -202,11 +200,7 @@ class Tensor:
 
                 if type(other) == type(self):
                     check_types(first_operand, second_operand)
-
-                    if other.shape != self.shape:  # TODO: broadcasting
-                        raise RuntimeError("The size of tensor a {} must match the size of tensor b {}."
-                                           .format(first_operand.shape, second_operand.shape))
-
+                    self, other = func.broadcast_tensors(self, other)
                     return operator(self, other, *args, **kwargs)
 
                 raise TypeError("Unsupported operand type(s) for {}: '{}' and '{}'."
@@ -221,6 +215,9 @@ class Tensor:
         def wrapper(self, *args, **kwargs):
             if self._is_leaf and self._requires_grad:
                 raise RuntimeError("A leaf Variable that requires grad is being used in an in-place operation.")
+            elif not self._data.flags['WRITEABLE']:
+                raise RuntimeError("The inplace operation cannot be applied to a read-only tensor. If this "
+                                   "tensor is a view of another, you can try to do the same operation with it.")
 
             out = method(self, *args, **kwargs)
             self._version.value += 1
@@ -338,12 +335,6 @@ class Tensor:
 
     @__view
     def transpose(self, dim0: int, dim1: int) -> Tensor:
-        if self.ndim == 0:
-            raise RuntimeError("Scalar cannot be transposed.")
-
-        check_dim(dim0, self.ndim)
-        check_dim(dim1, self.ndim)
-
         return func._transpose(self, dim0, dim1)
 
     @property
@@ -352,29 +343,18 @@ class Tensor:
 
     @__view
     def permute(self, dims: Size) -> Tensor:
-        if self.ndim != len(dims):
-            raise RuntimeError("Number of dimensions in the tensor input does not match "
-                               "the length of the desired ordering of dimensions i.e. "
-                               f"input.dim() = {self.ndim} is not equal to len(dims) = {len(dims)}.")
-        else:
-            check_dims(dims, self.ndim)
-
         return func._permute(self, dims)
 
     @__view
     def squeeze(self, dim: int | Size | None = None) -> Tensor:
-        check_dims(dim, self.ndim)
         return func._squeeze(self, dim)
 
     @__view
     def unsqueeze(self, dim: int | Size) -> Tensor:
-        check_dims(dim, self.ndim + len(flatten(dim)))
         return func._unsqueeze(self, dim)
 
     @__view
     def expand(self, *sizes: int | Size) -> Tensor:
-        # TODO: exceptions
-
         return func._expand(self, sizes)
 
     def __getitem__(self, *args, **kwargs) -> Tensor:

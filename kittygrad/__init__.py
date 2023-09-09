@@ -12,6 +12,7 @@ from .func import (
     mm,
     mv,
     matmul,
+    broadcast_tensors,
 )
 
 from numpy import float16 as float16

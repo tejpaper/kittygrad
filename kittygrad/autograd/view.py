@@ -27,4 +27,6 @@ class UnsqueezeBackward(FnBackward):
 
 class ExpandBackward(FnBackward):
     def _propagate(self) -> None:
-        pass
+        self._next_functions[0].propagate(
+            self._grad.sum(self._ctx.expanded_dims, keepdims=True).squeeze(self._ctx.leading_dims)
+        )
