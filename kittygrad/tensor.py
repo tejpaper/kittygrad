@@ -180,7 +180,7 @@ class Tensor:
         raise NotImplementedError("Unsupported operation with NumPy array. Try swapping operands.")  # TODO: mb develop
 
     @staticmethod
-    def __operator_handler(op_symbol: str, reverse: bool = False) -> typing.Callable:
+    def __operator_handler(op_symbol: str, reverse: bool = False, broadcast: bool = True) -> typing.Callable:
         def handler_decor(operator: typing.Callable) -> typing.Callable:
 
             @wraps(operator)
@@ -200,7 +200,8 @@ class Tensor:
 
                 if type(other) == type(self):
                     check_types(first_operand, second_operand)
-                    self, other = func.broadcast_tensors(self, other)
+                    if broadcast:
+                        self, other = func.broadcast_tensors(self, other)
                     return operator(self, other, *args, **kwargs)
 
                 raise TypeError("Unsupported operand type(s) for {}: '{}' and '{}'."
@@ -304,6 +305,14 @@ class Tensor:
     def mean(self, dim: int | Size | None = None, keepdim: bool = False) -> Tensor:
         return func._mean(self, dim, keepdim)
 
+    @__operator_handler(op_symbol='@', broadcast=False)
+    def __matmul__(self, other: np.ndarray | Tensor) -> Tensor:
+        return func.matmul(self, other)
+
+    @__operator_handler(op_symbol='@', reverse=True, broadcast=False)
+    def __rmatmul__(self, other: Tensor) -> Tensor:  # TODO: other is only a tensor (for now)
+        return func.matmul(other, self)
+
     # ================================================== Inplace Func ==================================================
 
     @__inplace_operation
@@ -330,6 +339,9 @@ class Tensor:
     @__operator_handler(op_symbol='**=')
     def __ipow__(self, other: Operand) -> Tensor:
         return func._ipow(self, other)
+
+    def __imatmul__(self, other: np.ndarray | Tensor) -> typing.NoReturn:
+        raise NotImplementedError("Inplace matrix multiplication is not implemented.")
 
     # ====================================================== View ======================================================
 

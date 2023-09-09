@@ -11,6 +11,7 @@ from .func import (
     dot,
     mm,
     mv,
+    bmm,
     matmul,
     broadcast_tensors,
 )

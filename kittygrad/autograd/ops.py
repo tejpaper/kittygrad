@@ -164,10 +164,10 @@ class MmBackward(FnBackward):
         fn_1, fn_2 = self._next_functions
 
         if fn_1 is not None:
-            fn_1.propagate(np.matmul(self._grad, matrix_2._data.T))
+            fn_1.propagate(np.matmul(self._grad, np.swapaxes(matrix_2._data, -2, -1)))
 
         if fn_2 is not None:
-            fn_2.propagate(np.matmul(matrix_1._data.T, self._grad))
+            fn_2.propagate(np.matmul(np.swapaxes(matrix_1._data, -2, -1), self._grad))
 
 
 class MvBackward(FnBackward):
@@ -176,8 +176,11 @@ class MvBackward(FnBackward):
         matrix_fn, vector_fn = self._next_functions
 
         if matrix_fn is not None:
-            # the only difference with MmBackward is the appropriate operands shapes here
             matrix_fn.propagate(np.matmul(self._grad[..., np.newaxis], vector._data[np.newaxis, ...]))
 
         if vector_fn is not None:
             vector_fn.propagate(np.matmul(matrix._data.T, self._grad))
+
+
+class BmmBackward(MmBackward):
+    pass  # exactly the same as MmBackward, since np.swapaxes is used instead of .T

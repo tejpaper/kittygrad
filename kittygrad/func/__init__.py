@@ -22,6 +22,7 @@ from .ops import (
     dot,
     mm,
     mv,
+    bmm,
     matmul,
 )
 from .view import (

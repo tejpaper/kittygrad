@@ -69,7 +69,7 @@ def _unsqueeze(tensor: tsr.Tensor, dim: int | Size, ctx: DotDict[str, list]) -> 
 
     check_dims(dim, tensor.ndim + len(dim))
 
-    ctx.dim = dim
+    ctx.dim = tuple(dim)
     return tsr.tensor(
         data=np.expand_dims(tensor._data, dim),
         requires_grad=tensor.requires_grad,
@@ -121,4 +121,3 @@ def broadcast_tensors(*tensors: tsr.Tensor) -> list[tsr.Tensor]:
     # numpy exceptions are absolutely fine
     result_shape = np.broadcast(*[t._data for t in tensors]).shape
     return [t.expand(*result_shape) if t.shape != result_shape else t for t in tensors]
-

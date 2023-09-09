@@ -18,6 +18,7 @@ from ..autograd import (
     DotBackward,
     MmBackward,
     MvBackward,
+    BmmBackward,
 )
 from ..utils import *
 
@@ -85,7 +86,6 @@ def _mul(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr.
         tensor if other.requires_grad else None,
         other if tensor.requires_grad else None,
     ])
-
     return tsr.tensor(
         data=np.multiply(tensor._data, other._data),
         requires_grad=tensor.requires_grad or other.requires_grad,
@@ -231,7 +231,7 @@ def mm(input: tsr.Tensor, mat2: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like A
 
 @backward_graph(MvBackward)
 def _mv(*args, **kwargs) -> tsr.Tensor:
-    return _mm.__wrapped__(*args, **kwargs)  # DRY
+    return _mm.__wrapped__(*args, **kwargs)
 
 
 def mv(input: tsr.Tensor, vec: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API
@@ -248,7 +248,34 @@ def mv(input: tsr.Tensor, vec: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like AP
     return _mv(input, vec)
 
 
+@backward_graph(BmmBackward)
+def _bmm(*args, **kwargs) -> tsr.Tensor:
+    return _mm.__wrapped__(*args, **kwargs)
+
+
+def bmm(input: tsr.Tensor, mat2: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API
+    check_types(input, mat2)
+
+    input_batch_dims = input.shape[:-2]
+    mat2_batch_dims = mat2.shape[:-2]
+
+    if input_batch_dims != mat2_batch_dims:
+        raise RuntimeError("Batch dimensions of both tensors must be equal, but got "
+                           f"{input_batch_dims} and {mat2_batch_dims} respectively.")
+    elif not input_batch_dims:
+        raise RuntimeError("The batch matrix-matrix product requires the "
+                           "tensors to have at least 3 dimensions each.")
+    elif input.shape[-1] != mat2.shape[-2]:
+        raise RuntimeError("input and mat2 matrix shapes cannot be multiplied ({}x{} and {}x{})."
+                           .format(*input.shape[-2:], *mat2.shape[-2:]))
+
+    return _bmm(input, mat2)
+
+
 def matmul(input: tsr.Tensor, other: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-like API
+    if input.ndim == 0 or other.ndim == 0:
+        raise RuntimeError("Input tensors must not be scalars.")
+
     if input.ndim == 1 and other.ndim == 1:
         return dot(input, other)
     elif input.ndim == 2 and other.ndim == 2:
@@ -258,4 +285,18 @@ def matmul(input: tsr.Tensor, other: tsr.Tensor) -> tsr.Tensor:  # noqa: torch-l
     elif input.ndim == 2 and other.ndim == 1:
         return mv(input, other)
 
-    pass  # TODO: + exceptions
+    batch_dims = np.broadcast_shapes(input.shape[:-2], other.shape[:-2])
+
+    assert not (input.ndim == 1 and other.ndim == 1)  # TODO: remove me after a bunch of tests
+
+    if input.ndim == 1:
+        return bmm(input.unsqueeze(-2).expand(*batch_dims, -1, -1),
+                   other.expand(*batch_dims, -1, -1)
+                   ).squeeze(-2)
+    elif other.ndim == 1:
+        return bmm(input.expand(*batch_dims, -1, -1),
+                   other.unsqueeze(-1).expand(*batch_dims, -1, -1)
+                   ).squeeze(-1)
+    else:
+        return bmm(input.expand(*batch_dims, -1, -1),
+                   other.expand(*batch_dims, -1, -1))
