@@ -24,3 +24,5 @@ from numpy import float32 as float  # noqa: torch like API
 
 from numpy import float64 as float64
 from numpy import float64 as double
+
+from numpy.random import seed as manual_seed

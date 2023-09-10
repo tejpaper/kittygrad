@@ -152,14 +152,6 @@ def test_arithmetics():  # TODO: not only exceptions, but also correctness of th
         kitty.tensor(0, dtype=kitty.half) * tensor
     assert str(msg.value) == "Operands type mismatch: float16 != float32."
 
-    with pytest.raises(RuntimeError) as msg:
-        kitty.tensor([[1, 1]]) * kitty.tensor([[1], [1]])  # :(
-    assert str(msg.value) == "The size of tensor a (1, 2) must match the size of tensor b (2, 1)."
-
-    with pytest.raises(RuntimeError) as msg:
-        kitty.tensor([[1], [1]]) + kitty.tensor(0)
-    assert str(msg.value) == "The size of tensor a (2, 1) must match the size of tensor b ()."
-
 
 def test_indexing():
     torch_a = torch.tensor([1, 2, 3.])

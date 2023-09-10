@@ -202,7 +202,7 @@ class Tensor:
                     check_types(first_operand, second_operand)
                     if broadcast:
                         self, other = func.broadcast_tensors(self, other)
-                    return operator(self, other, *args, **kwargs)
+                    return operator(self, other)
 
                 raise TypeError("Unsupported operand type(s) for {}: '{}' and '{}'."
                                 .format(op_symbol, type(first_operand).__name__, type(second_operand).__name__))
@@ -304,6 +304,8 @@ class Tensor:
 
     def mean(self, dim: int | Size | None = None, keepdim: bool = False) -> Tensor:
         return func._mean(self, dim, keepdim)
+
+    # TODO: std, abs
 
     @__operator_handler(op_symbol='@', broadcast=False)
     def __matmul__(self, other: np.ndarray | Tensor) -> Tensor:
