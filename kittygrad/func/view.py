@@ -77,15 +77,22 @@ def _unsqueeze(tensor: tsr.Tensor, dim: int | Size, ctx: DotDict[str, list]) -> 
 
 
 @backward_graph(ExpandBackward)
-def _expand(tensor: tsr.Tensor, sizes: int | Size, ctx: DotDict[str, list]) -> tsr.Tensor:
-    if isinstance(sizes, int):
-        sizes = [sizes]
+def _expand(tensor: tsr.Tensor, shape: Size, expanded_dims: Size, offset: int, ctx: DotDict[str, list]) -> tsr.Tensor:
+    ctx.expanded_dims = tuple(expanded_dims)
+    ctx.leading_dims = tuple(range(offset))
 
-    if any(dim <= 0 and dim != -1 for dim in sizes):
-        raise RuntimeError(f"The expanded size of the tensor ({min(sizes)}) isn't allowed.")
+    return tsr.tensor(
+        data=np.broadcast_to(tensor._data, shape),
+        requires_grad=tensor.requires_grad,
+    )
 
-    old_shape = list(tensor.shape)
-    new_shape = list(sizes)
+
+def broadcast_to(input: tsr.Tensor, shape: Size) -> tsr.Tensor:  # noqa: torch-like API
+    if any(dim <= 0 and dim != -1 for dim in shape):
+        raise RuntimeError(f"The expanded size of the tensor ({min(shape)}) isn't allowed.")  # TODO: bug
+
+    old_shape = list(input.shape)
+    new_shape = list(shape)
     expanded_dims = []
 
     offset = len(new_shape) - len(old_shape)
@@ -104,20 +111,17 @@ def _expand(tensor: tsr.Tensor, sizes: int | Size, ctx: DotDict[str, list]) -> t
             if old_shape[i - offset] != 1:
                 raise RuntimeError("The expanded size of the tensor ({}) must match the existing size ({}) "
                                    "at non-singleton dimension {}. Target sizes: {}. Tensor sizes: {}."
-                                   .format(new_shape[i], old_shape[i - offset], i, list(sizes), old_shape))
+                                   .format(new_shape[i], old_shape[i - offset], i, list(shape), old_shape))
 
             expanded_dims.append(i)
 
-    ctx.expanded_dims = tuple(expanded_dims)
-    ctx.leading_dims = tuple(range(offset))
-
-    return tsr.tensor(
-        data=np.broadcast_to(tensor._data, new_shape),
-        requires_grad=tensor.requires_grad,
-    )
+    if new_shape == old_shape:
+        return input
+    else:
+        return _expand(input, new_shape, expanded_dims, offset)
 
 
 def broadcast_tensors(*tensors: tsr.Tensor) -> list[tsr.Tensor]:
     # numpy exceptions are absolutely fine
     result_shape = np.broadcast(*[t._data for t in tensors]).shape
-    return [t.expand(*result_shape) if t.shape != result_shape else t for t in tensors]
+    return [broadcast_to(t, result_shape) for t in tensors]

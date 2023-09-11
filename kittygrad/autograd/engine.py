@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import typing
-
-# creepy alias to avoid circular imports and provide normal variable names
-import kittygrad.tensor as tsr
-from ..utils import DotDict, inplace_modification_error
+from ..utils import *
 
 import numpy as np
 
@@ -81,7 +77,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         if self._lock > 0:
             return
         elif self._lock < 0 or all(next_fn is None for next_fn in self._next_functions):
-            raise RuntimeError("Trying to backward through the graph a second time.")
+            redundant_backward_error()
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
             if tensor is not None and tensor.version != old_version:

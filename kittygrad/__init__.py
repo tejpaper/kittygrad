@@ -15,6 +15,7 @@ from .func import (
     matmul,
     broadcast_tensors,
 )
+from .constants import Size
 
 from numpy import float16 as float16
 from numpy import float16 as half

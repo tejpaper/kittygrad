@@ -113,9 +113,7 @@ def test_exceptions():
         tensor.grad = kitty.tensor([[-1, 0]])
     assert str(msg.value) == "Assigned grad has data of a different size."
 
-    with pytest.warns(UserWarning,
-                      match="Trying to assign a gradient to a tensor that doesn't need it. "
-                            "The requires_grad attribute is set to True."):
+    with pytest.warns(UserWarning, match="Trying to assign a gradient to a tensor that doesn't need it."):
         tensor.grad = kitty.tensor([0.9, -0.5], dtype=kitty.float)
 
     tensor.grad = None

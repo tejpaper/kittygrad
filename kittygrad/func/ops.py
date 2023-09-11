@@ -158,6 +158,9 @@ def _ipow(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr
 def _sum(tensor: tsr.Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str, list]) -> tsr.Tensor:
     check_dims(dim, tensor.ndim)
 
+    if dim is not None:
+        dim = tuple(dim)
+
     ctx.shape = tensor.shape
     ctx.dim = dim
     ctx.keepdim = keepdim
@@ -170,6 +173,9 @@ def _sum(tensor: tsr.Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict
 @backward_graph(MeanBackward)
 def _mean(tensor: tsr.Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str, list]) -> tsr.Tensor:
     check_dims(dim, tensor.ndim)
+
+    if dim is not None:
+        dim = tuple(dim)
 
     ctx.shape = tensor.shape
     ctx.dim = dim

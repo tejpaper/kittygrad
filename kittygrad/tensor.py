@@ -6,6 +6,7 @@ import kittygrad.func as func
 from .autograd import FnBackward, check_locks
 from .constants import *
 from .utils import (
+    redundant_backward_error,
     flatten,
     check_types,
 )
@@ -15,6 +16,7 @@ import numpy as np
 import warnings
 from functools import wraps
 from ctypes import c_int64 as mutable_int
+
 
 np.set_printoptions(precision=4)
 warnings.simplefilter('always', UserWarning)
@@ -368,8 +370,8 @@ class Tensor:
         return func._unsqueeze(self, dim)
 
     @__view
-    def expand(self, *sizes: int | Size) -> Tensor:
-        return func._expand(self, sizes)
+    def expand(self, *sizes: int) -> Tensor:
+        return func.broadcast_to(self, sizes)
 
     def __getitem__(self, *args, **kwargs) -> Tensor:
         if self._requires_grad:
@@ -415,6 +417,8 @@ class Tensor:
             self.grad = gradient
             return
 
+        if self._grad_fn is None:
+            redundant_backward_error()
         if self.shape != gradient.shape:
             raise RuntimeError("Assigned grad has data of a different size.")
 

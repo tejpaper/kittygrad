@@ -30,6 +30,6 @@ from .view import (
     _permute,
     _squeeze,
     _unsqueeze,
-    _expand,
+    broadcast_to,
     broadcast_tensors,
 )
