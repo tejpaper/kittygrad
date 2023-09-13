@@ -1,33 +1,19 @@
 from __future__ import annotations
 
-import typing
 from collections.abc import Iterable
 
-# creepy alias to avoid circular imports and provide normal variable names
-import kittygrad.tensor as tsr
 from .constants import *
+import kittygrad.tensor as tsr
 
 
-class DotDict(dict):
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-
-def redundant_backward_error() -> typing.NoReturn:
-    raise RuntimeError("Trying to backward through the graph a second time.")
-
-
-def inplace_modification_error() -> typing.NoReturn:
-    raise RuntimeError("One of the variables needed for gradient computation "
-                       "has been modified by an inplace operation.")
+manual_seed = np.random.seed
 
 
 def flatten(x: tuple[int, ...] | list[int] | Scalar) -> list:
     return sum(map(flatten, x), []) if isinstance(x, Iterable) else [x]
 
 
-def inv_permutation(permutation:  Size) -> Size:
+def inv_permutation(permutation: Size) -> Size:
     if not permutation:
         return tuple()
 

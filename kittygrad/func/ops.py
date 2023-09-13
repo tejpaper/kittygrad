@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ..autograd import (
-    backward_graph,
+from ..autograd.ops import (
+    ToCopyBackward,
     NegBackward,
     ExpBackward,
     LogBackward,
@@ -20,9 +20,18 @@ from ..autograd import (
     MvBackward,
     BmmBackward,
 )
+from ..autograd.engine import backward_graph
 from ..utils import *
 
-import numpy as np
+
+@backward_graph(ToCopyBackward)
+def _type(tensor: tsr.Tensor, dtype: type | np.dtype, ctx: DotDict[str, list]) -> tsr.Tensor:
+    ctx.prev_dtype = tensor.dtype
+    return tsr.tensor(
+        data=tensor._data,
+        dtype=dtype,
+        requires_grad=tensor.requires_grad,
+    )
 
 
 @backward_graph(NegBackward)

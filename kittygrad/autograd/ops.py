@@ -1,8 +1,10 @@
 from .engine import FnBackward
-from ..constants import Size
-from ..utils import inplace_modification_error
+from ..utils import *
 
-import numpy as np
+
+class ToCopyBackward(FnBackward):
+    def _propagate(self) -> None:
+        self._next_functions[0].propagate(self._grad.astype(self._ctx.prev_dtype))
 
 
 class NegBackward(FnBackward):

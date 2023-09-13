@@ -22,6 +22,8 @@ class Comparison:
                 print(f'{attr} attribute mismatch: {attr_value_1} != {attr_value_2}.')
                 return False
 
+        # TODO: check dtypes
+
         kitty_array = kitty_tensor._data
         torch_array = torch_tensor.detach().numpy()
 
@@ -38,9 +40,9 @@ class Comparison:
 
         approximate_match = np.allclose(kitty_array, torch_array, self.rel_tol, self.abs_tol)
 
+        self.approximate += approximate_match
         self.max_rel_diff = max(self.max_rel_diff,
                                 np.max(self.rel_tol - np.abs(kitty_array - torch_array) / np.abs(torch_array)))
-        self.approximate += approximate_match
 
         return approximate_match
 
@@ -83,6 +85,21 @@ def test_ops(shape_a, shape_b, squeeze_dims, compare):
     def zero_grad():
         for tensor in (kitty_a, kitty_b, torch_a, torch_b):
             tensor.grad = None
+
+    # type, __mul__
+    kitty_c = kitty_a.type(kitty.float64)
+    kitty_c.retain_grad()
+    (kitty_c * kitty_b.type(kitty.float64)).sum().backward()
+
+    torch_c = torch_a.type(torch.float64)
+    torch_c.retain_grad()
+    (torch_c * torch_b.type(torch.float64)).sum().backward()
+
+    assert compare(kitty_a.grad, torch_a.grad)
+    assert compare(kitty_b.grad, torch_b.grad)
+    assert compare(kitty_c.grad, torch_c.grad)
+
+    zero_grad()
 
     # __pos__, __neg__, ones_like
     kitty_c = +(-kitty_a)
@@ -190,10 +207,11 @@ def test_ops(shape_a, shape_b, squeeze_dims, compare):
                                 (torch_a, torch_b, torch_c, torch_d, torch_e)):
         assert compare(kitty_t.grad, torch_t.grad)
 
+
+
     # TODO: abs + raising to a negative power
-    # TODO: sum, mean, std with different args
+    # TODO: std
     # TODO: init grad with zeros, other non-standard variations
-    # TODO: different dtypes
 
 
 def test_ops_exceptions():
@@ -391,8 +409,6 @@ def test_view(shape, compare):
     torch_b.sum().backward()
     assert compare(kitty_a.grad, torch_a.grad)
 
-    zero_grad()
-
 
 def test_view_exceptions():
     pass
@@ -566,6 +582,27 @@ def test_engine(shape_a, shape_b, shape_c, shape_d, compare):
 
     assert compare(kitty_a.grad, torch_a.grad)
     assert compare(kitty_b.grad, torch_b.grad)
+
+    zero_grad()
+
+    # gradient accumulation without a computational graph
+    kitty_a.backward(kitty.ones_like(kitty_a))
+    torch_a.backward(torch.ones_like(torch_a))
+    assert compare(kitty_a.grad, torch_a.grad)
+
+    zero_grad()
+
+    # gradient accumulation without a computational graph with wrong dtype
+    with pytest.raises(TypeError) as msg:
+        kitty_a.backward(kitty.ones_like(kitty_a, dtype=kitty.float16))
+    assert str(msg.value) == "Assigned grad has data of a different type."
+
+    zero_grad()
+
+    # the engine fixes wrong initial gradient dtype TODO
+    (kitty_a * 2).backward(kitty.ones_like(kitty_a, dtype=kitty.float16))
+    (torch_a * 2).backward(torch.ones_like(torch_a, dtype=torch.float16))
+    assert compare(kitty_a.grad, torch_a.grad)
 
     zero_grad()
 

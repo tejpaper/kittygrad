@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from ..autograd import (
-    backward_graph,
+from ..autograd.view import (
     TransposeBackward,
     PermuteBackward,
     SqueezeBackward,
     UnsqueezeBackward,
     ExpandBackward,
 )
+from ..autograd.engine import backward_graph
 from ..utils import *
-
-import numpy as np
 
 
 @backward_graph(TransposeBackward)

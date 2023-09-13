@@ -121,7 +121,7 @@ def test_exceptions():
     tensor.grad = None
 
 
-def test_arithmetics():  # TODO: not only exceptions, but also correctness of the results
+def test_arithmetics():  # TODO: remove
     tensor = kitty.tensor(3)
 
     tensor + 1
@@ -151,7 +151,7 @@ def test_arithmetics():  # TODO: not only exceptions, but also correctness of th
     assert str(msg.value) == "Operands type mismatch: float16 != float32."
 
 
-def test_indexing():
+def test_indexing():  # TODO: move to test_autograd.py
     torch_a = torch.tensor([1, 2, 3.])
     torch_b = torch_a
     torch_b[1] = 100
@@ -204,11 +204,15 @@ def test_indexing():
     assert repr(kitty_b) == repr(torch_b)
 
 
-def test_ref():
+def test_methods():
     kitty_tensor = kitty.tensor([1, 2, 3], dtype=kitty.double)
     assert kitty_tensor.dtype == kitty.double
 
     kitty_detached = kitty_tensor.detach()
     kitty_detached[1] = 1000
 
-    assert kitty_tensor != kitty_detached
+    assert kitty_tensor is not kitty_detached
+
+    assert kitty_tensor.type(kitty.float64) is kitty_tensor
+    assert kitty_tensor.type(kitty.float16).dtype == kitty.float16
+    assert kitty_tensor.type(kitty.float32).dtype == kitty.float32

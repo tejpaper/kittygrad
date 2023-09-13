@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from ..utils import *
-
-import numpy as np
-
 import abc
-import warnings
 from functools import wraps
+import warnings
+
+from ..utils import *
 
 
 class BackwardAccess(abc.ABC):  # ba short

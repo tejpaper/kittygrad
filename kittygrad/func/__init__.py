@@ -4,6 +4,7 @@ from .activation import (
     _relu,
 )
 from .ops import (
+    _type,
     _neg,
     _exp,
     _log,

@@ -1,8 +1,5 @@
 from .engine import FnBackward
-from ..utils import inv_permutation
-
-
-import numpy as np
+from ..utils import *
 
 
 class TransposeBackward(FnBackward):  # PermuteBackward

@@ -1,25 +1,15 @@
 from __future__ import annotations
 
-import typing
-
 import kittygrad.func as func
-from .autograd import FnBackward, check_locks
-from .constants import *
-from .utils import (
-    redundant_backward_error,
-    flatten,
-    check_types,
-)
+from ..autograd.engine import FnBackward, check_locks
+from ..utils import *
 
-import numpy as np
-
-import warnings
-from functools import wraps
 from ctypes import c_int64 as mutable_int
+from functools import wraps
+import warnings
 
 
-np.set_printoptions(precision=4)
-warnings.simplefilter('always', UserWarning)
+warnings.simplefilter('always', UserWarning)  # TODO: move to __init__.py
 
 
 class Tensor:
@@ -70,7 +60,7 @@ class Tensor:
         array_prefix = 'array('
         array_padding = ' ' * len(array_prefix)
 
-        data_str = repr(self._data)
+        data_str = np.array_repr(self._data, precision=PRECISION)  # TODO: take a look
         if self.ndim:
             data_str = data_str[data_str.find('['):data_str.rfind(']') + 1]
         else:
@@ -391,6 +381,12 @@ class Tensor:
 
     # ================================================== Interaction ===================================================
 
+    def type(self, dtype: type | np.dtype) -> Tensor:
+        if dtype == self.dtype:
+            return self
+        else:
+            return func._type(self, dtype)
+
     def nelement(self) -> int:
         return self._data.size
 
@@ -435,51 +431,5 @@ class Tensor:
                           "has at least one more output for the .backward() call.")
 
 
-def rand(*size: Size,
-         dtype: type | np.dtype | None = None,
-         requires_grad: bool = False) -> Tensor:
-    if dtype is None:
-        dtype = DEFAULT_DTYPE
-    return tensor(np.random.rand(*size), dtype, requires_grad)
-
-
-def randn(*size: Size,
-          dtype: type | np.dtype | None = None,
-          requires_grad: bool = False) -> Tensor:
-    if dtype is None:
-        dtype = DEFAULT_DTYPE
-    return tensor(np.random.randn(*size), dtype, requires_grad)
-
-
-def ones(*size: Size,
-         dtype: type | np.dtype | None = None,
-         requires_grad: bool = False) -> Tensor:
-    if dtype is None:
-        dtype = DEFAULT_DTYPE
-    return tensor(np.ones(size, dtype), requires_grad=requires_grad)
-
-
-def ones_like(input: Tensor,  # noqa: torch-like API
-              dtype: type | np.dtype | None = None,
-              requires_grad: bool = False) -> Tensor:
-    return tensor(np.ones(input.shape, dtype), requires_grad=requires_grad)
-
-
-def zeros(*size: Size,
-          dtype: type | np.dtype | None = None,
-          requires_grad: bool = False) -> Tensor:
-    if dtype is None:
-        dtype = DEFAULT_DTYPE
-    return tensor(np.zeros(size, dtype), requires_grad=requires_grad)
-
-
-def zeros_like(input: Tensor,  # noqa: torch-like API
-               dtype: type | np.dtype | None = None,
-               requires_grad: bool = False) -> Tensor:
-    if dtype is None:
-        dtype = DEFAULT_DTYPE
-    return tensor(np.zeros(input.shape, dtype), requires_grad=requires_grad)
-
-
-Operand = Scalar | np.ndarray | Tensor
+Operand = Scalar | np.ndarray | Tensor  # TODO: move to constants.py
 tensor = Tensor
