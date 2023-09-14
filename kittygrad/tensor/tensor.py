@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import kittygrad.func as func
-from ..autograd.engine import FnBackward, check_locks
-from ..utils import *
-
 from ctypes import c_int64 as mutable_int
 from functools import wraps
 import warnings
 
-
-warnings.simplefilter('always', UserWarning)  # TODO: move to __init__.py
+import kittygrad.func as func
+from ..autograd.engine import FnBackward, check_locks
+from ..utils import *
 
 
 class Tensor:
@@ -17,6 +14,8 @@ class Tensor:
         if type(data) == type(self):
             raise RuntimeError("If you want to create a new tensor from another, use "
                                "sourceTensor.detach() and then specify the requires_grad attribute.")
+        elif isinstance(data, np.generic):
+            data = np.array(data)
 
         is_ndarray = isinstance(data, np.ndarray)
         dtype_unknown = dtype is None
@@ -36,13 +35,13 @@ class Tensor:
             raise TypeError(f"Data type '{dtype.__name__}' is not supported.")
         elif dtype_unknown and not supported_dtype:
             if is_ndarray:
-                warnings.warn(f"Passed NumPy array has an unsupported data type. "
+                warnings.warn("Passed NumPy array has an unsupported data type. "
                               f"Created a copy based on '{DEFAULT_DTYPE.__name__}' dtype.")
             self._data = np.array(data, DEFAULT_DTYPE)
-        elif supported_dtype and (not is_ndarray or not dtype_unknown):
+        elif not is_ndarray and supported_dtype:
             self._data = np.array(data, dtype)
         else:
-            self._data = data
+            self._data = data.astype(dtype, copy=False)
 
         self._requires_grad = requires_grad
         self._grad = None
@@ -54,30 +53,22 @@ class Tensor:
     # ============================================= Tensor Representation ==============================================
 
     def __repr__(self) -> str:
-        tensor_prefix = 'tensor('
-        tensor_padding = ' ' * len(tensor_prefix)
-
-        array_prefix = 'array('
-        array_padding = ' ' * len(array_prefix)
-
-        data_str = np.array_repr(self._data, precision=PRECISION)  # TODO: take a look
-        if self.ndim:
-            data_str = data_str[data_str.find('['):data_str.rfind(']') + 1]
-        else:
-            data_str = data_str[len(array_prefix):data_str.rfind(',')]
-        data_str = data_str.replace('\n' + array_padding, '\n' + tensor_padding)
-
-        main_content = tensor_prefix + data_str
-
+        suffix = ''
         if self.dtype != DEFAULT_DTYPE:
-            main_content += f', dtype={self.dtype}'
-
+            suffix += f', dtype={self.dtype}'
         if self._grad_fn is not None:
-            return f'{main_content}, grad_fn={self._grad_fn})'
+            suffix += f', grad_fn={self._grad_fn}'
         elif self._requires_grad:
-            return main_content + ', requires_grad=True)'
-        else:
-            return main_content + ')'
+            suffix += ', requires_grad=True'
+        suffix += ')'
+
+        return REPR_PREFIX + np.array2string(
+            a=self._data,
+            precision=REPR_PRECISION,
+            separator=REPR_SEPARATOR,
+            prefix=REPR_PREFIX,
+            suffix=suffix,
+        ) + suffix
 
     def __str__(self) -> str:
         return repr(self)
@@ -138,9 +129,9 @@ class Tensor:
         elif id(new_grad) == id(self):
             raise RuntimeError("Can't assign Variable as its own grad.")
         elif new_grad.dtype != self.dtype:
-            raise TypeError("Assigned grad has data of a different type.")
+            grad_type_error()
         elif new_grad.shape != self.shape:
-            raise RuntimeError("Assigned grad has data of a different size.")
+            grad_shape_error()
         else:
             self._grad = new_grad._data
 
@@ -205,7 +196,7 @@ class Tensor:
     @staticmethod
     def __inplace_operation(method: typing.Callable) -> typing.Callable:  # TODO: test
         @wraps(method)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self, *args, **kwargs) -> Tensor:
             if self._is_leaf and self._requires_grad:
                 raise RuntimeError("A leaf Variable that requires grad is being used in an in-place operation.")
             elif not self._data.flags['WRITEABLE']:
@@ -221,7 +212,7 @@ class Tensor:
     @staticmethod
     def __view(method: typing.Callable) -> typing.Callable:
         @wraps(method)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self, *args, **kwargs) -> Tensor:
             new_view = method(self, *args, **kwargs)
             new_view._version = self._version
             return new_view
@@ -382,16 +373,16 @@ class Tensor:
     # ================================================== Interaction ===================================================
 
     def type(self, dtype: type | np.dtype) -> Tensor:
-        if dtype == self.dtype:
-            return self
-        else:
+        if dtype != self.dtype:
             return func._type(self, dtype)
+        else:
+            return self
 
     def nelement(self) -> int:
         return self._data.size
 
-    def detach(self):  # unlike torch makes a full copy of a tensor
-        return tensor(np.copy(self._data))
+    def detach(self) -> Tensor:  # unlike torch makes a full copy of a tensor
+        return tensor(self._data.copy())
 
     def retain_grad(self) -> None:
         if not self._requires_grad:
@@ -401,6 +392,7 @@ class Tensor:
             self._retains_grad = True
 
     def backward(self, gradient: Tensor | None = None) -> None:
+        # ENTRY POINT
         if not self._requires_grad:
             raise RuntimeError("Tensor does not require grad and does not have a grad_fn.")
         elif gradient is None and self.ndim:
@@ -415,21 +407,20 @@ class Tensor:
 
         if self._grad_fn is None:
             redundant_backward_error()
-        if self.shape != gradient.shape:
-            raise RuntimeError("Assigned grad has data of a different size.")
-
-        if self._grad_fn._lock != 0:
+        elif self.shape != gradient.shape:
+            grad_shape_error()
+        elif self.dtype != gradient.dtype:
+            grad_type_error()
+        elif self._grad_fn._lock != 0:
             warnings.warn("A .backward() call from the middle of the computational graph was noticed.")
 
+        # ENGINE
         self._grad_fn._lock = 1
         temp = self._grad_fn
 
         self._grad_fn.propagate(gradient._data)
-
-        if check_locks(temp):
-            warnings.warn("Backpropagation not completed. The computational graph "
-                          "has at least one more output for the .backward() call.")
+        check_locks(temp)
 
 
-Operand = Scalar | np.ndarray | Tensor  # TODO: move to constants.py
+Operand = Scalar | np.ndarray | Tensor
 tensor = Tensor

@@ -5,7 +5,6 @@ from collections.abc import Iterable
 from .constants import *
 import kittygrad.tensor as tsr
 
-
 manual_seed = np.random.seed
 
 
@@ -40,11 +39,9 @@ def normalize_dims(dims: Size, ndim: int) -> Size:
     return [dim + ndim if dim < 0 else dim for dim in dims]
 
 
-def check_dims(dims: int | Size | None, ndim: int) -> None:
+def check_dims(dims: Size | None, ndim: int) -> None:
     if dims is None:
         return
-    elif isinstance(dims, int):
-        dims = [dims]
     elif len(set(normalize_dims(dims, ndim))) != len(dims):
         raise RuntimeError("Duplicate dims are not allowed.")
 

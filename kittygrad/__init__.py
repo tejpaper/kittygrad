@@ -19,3 +19,7 @@ from .utils import (
     # functions.py
     manual_seed,
 )
+
+# configurations
+import warnings as _warnings
+_warnings.simplefilter('always', UserWarning)

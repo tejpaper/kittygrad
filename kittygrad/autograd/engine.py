@@ -12,7 +12,7 @@ class BackwardAccess(abc.ABC):  # ba short
     def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
         pass
 
-    def __format__(self, format_spec):
+    def __format__(self, format_spec: str) -> str:
         return f'<{type(self).__name__}>'.__format__(format_spec)
 
     def __repr__(self) -> str:
@@ -27,8 +27,7 @@ class AccumulateGrad(BackwardAccess):  # ag short
         self._tensor = tensor
 
     def propagate(self, grad: np.ndarray | np.generic) -> None:
-        # TODO: remove us after a bunch of tests
-        assert self._tensor.dtype == grad.dtype
+        # TODO: remove me after a bunch of tests
         if self._tensor.shape != grad.shape:
             raise RuntimeError(f"The size of tensor {self._tensor.shape} "
                                f"must match the size of its gradient {grad.shape}.")
@@ -37,7 +36,7 @@ class AccumulateGrad(BackwardAccess):  # ag short
             self._tensor._grad = np.zeros_like(self._tensor._data)
 
         # += will cause a bug if self._tensor._grad is grad
-        np.add(self._tensor._grad, grad, out=self._tensor._grad)
+        np.add(self._tensor._grad, grad, out=self._tensor._grad, **NP_OPS_CONFIG)
 
 
 # TODO: test memory leaks, mb weak pointers are needed
@@ -69,7 +68,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
     def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
         assert id(self._grad) != id(prev_grad)  # TODO: remove me after a bunch of tests
-        self._grad += prev_grad
+        np.add(self._grad, prev_grad, out=self._grad, **NP_OPS_CONFIG)
         self._lock -= 1
 
         if self._lock > 0:
@@ -84,7 +83,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         # hook
         if self._ctx.out.retains_grad:
             if self._ctx.out.version == self._versions.out:
-                self._ctx.out._grad = np.copy(self._grad)  # no ref to avoid bugs
+                self._ctx.out._grad = self._grad.copy()  # no ref to avoid bugs
             else:
                 warnings.warn("An attempt to assign a gradient to a tensor with retains_grad=True "
                               "and modified by inplace operation was noticed.")
@@ -129,7 +128,7 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
     return backward_graph_decor
 
 
-def check_locks(head: FnBackward) -> bool:
+def check_locks(head: FnBackward) -> None:
     visited = {None}
     queue = {head}
 
@@ -138,10 +137,10 @@ def check_locks(head: FnBackward) -> bool:
         visited.add(fn)
 
         if fn._lock > 0:
-            return True
+            warnings.warn("Backpropagation not completed. The computational graph "
+                          "has at least one more output for the .backward() call.")
+            return
 
         for ba in fn._next_functions:
             if not isinstance(ba, AccumulateGrad) and ba not in visited:
                 queue.add(ba)
-
-    return False

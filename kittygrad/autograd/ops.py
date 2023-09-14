@@ -61,9 +61,7 @@ class IMulBackward(FnBackward):
         factor_1, factor_2 = self._ctx.saved_arrays
         fn_1, fn_2 = self._next_functions
 
-        if fn_1 is not None:
-            fn_1.propagate(factor_2 * self._grad)
-
+        fn_1.propagate(factor_2 * self._grad)
         if fn_2 is not None:
             fn_2.propagate(factor_1 * self._grad)
 
@@ -89,9 +87,7 @@ class IDivBackward(FnBackward):
 
         self._grad *= self._ctx.other_inv
 
-        if dividend_fn is not None:
-            dividend_fn.propagate(self._grad)
-
+        dividend_fn.propagate(self._grad)
         if divisor_fn is not None:
             divisor_fn.propagate(-self._ctx.out_array * self._grad)
 
@@ -120,9 +116,7 @@ class IPowBackward(FnBackward):
 
         self._grad *= self._ctx.out_array
 
-        if base_fn is not None:
-            base_fn.propagate(exponent / base * self._grad)
-
+        base_fn.propagate(exponent / base * self._grad)
         if exponent_fn is not None:
             exponent_fn.propagate(np.log(base) * self._grad)
 
@@ -131,8 +125,6 @@ class SumBackward(FnBackward):
     def _separate_dims(self) -> tuple[Size, Size]:
         if self._ctx.dim is None:
             dims2repeat = range(len(self._ctx.shape))
-        elif isinstance(self._ctx.dim, int):
-            dims2repeat = [self._ctx.dim]
         else:
             dims2repeat = self._ctx.dim
 
@@ -153,11 +145,8 @@ class SumBackward(FnBackward):
 class MeanBackward(SumBackward):  # SumBackward + MulBackward
     def _propagate(self) -> None:
         expanded_shape, reps = super()._separate_dims()
-        self._next_functions[0].propagate(np.tile(self._grad.reshape(expanded_shape), reps) / np.prod(reps))
-
-
-class DotBackward(MulBackward):
-    pass  # exactly the same as MulBackward due to numpy self._grad autocast
+        self._next_functions[0].propagate(
+            np.tile(self._grad.reshape(expanded_shape), reps) / np.prod(reps, dtype=self._grad.dtype))
 
 
 class MmBackward(FnBackward):
@@ -170,6 +159,10 @@ class MmBackward(FnBackward):
 
         if fn_2 is not None:
             fn_2.propagate(np.matmul(np.swapaxes(matrix_1._data, -2, -1), self._grad))
+
+
+class DotBackward(MulBackward):
+    pass  # exactly the same as MulBackward due to numpy self._grad autocast
 
 
 class MvBackward(FnBackward):

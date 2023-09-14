@@ -1,7 +1,4 @@
-import pytest
-import torch
-import numpy as np
-import kittygrad as kitty
+from conftest import *
 
 
 def test_repr():
@@ -151,7 +148,7 @@ def test_arithmetics():  # TODO: remove
     assert str(msg.value) == "Operands type mismatch: float16 != float32."
 
 
-def test_indexing():  # TODO: move to test_autograd.py
+def test_indexing():  # TODO: move to test_view.py
     torch_a = torch.tensor([1, 2, 3.])
     torch_b = torch_a
     torch_b[1] = 100

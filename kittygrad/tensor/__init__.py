@@ -1,4 +1,3 @@
-from .tensor import tensor, Tensor
 from .create import (
     rand,
     randn,
@@ -7,3 +6,4 @@ from .create import (
     zeros,
     zeros_like,
 )
+from .tensor import tensor, Tensor

@@ -13,6 +13,7 @@ from ..utils import *
 def _sigmoid(tensor: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=1 / (1 + np.exp(-tensor._data)),
+        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
@@ -22,6 +23,7 @@ def _tanh(tensor: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     exp = np.exp(2 * tensor._data)
     return tsr.tensor(
         data=(exp - 1) / (exp + 1),
+        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
@@ -30,6 +32,7 @@ def _tanh(tensor: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
 def _relu(tensor: tsr.Tensor, _ctx: DotDict[str, list]) -> tsr.Tensor:
     return tsr.tensor(
         data=tensor._data * (tensor._data > 0),
+        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 

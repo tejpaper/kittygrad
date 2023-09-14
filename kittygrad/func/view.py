@@ -45,13 +45,12 @@ def _permute(tensor: tsr.Tensor, dims: Size, ctx: DotDict[str, list]) -> tsr.Ten
 
 @backward_graph(SqueezeBackward)
 def _squeeze(tensor: tsr.Tensor, dim: int | Size | None, ctx: DotDict[str, list]) -> tsr.Tensor:
-    check_dims(dim, tensor.ndim)
-
     if isinstance(dim, int):
-        dim = [dim]
-
-    if dim is not None:
+        dim = (dim,) if tensor.shape[dim] == 1 else ()
+    elif dim is not None:
         dim = tuple(d for d in dim if tensor.shape[d] == 1)
+
+    check_dims(dim, tensor.ndim)
 
     ctx.shape = tensor.shape
     return tsr.tensor(
@@ -63,11 +62,13 @@ def _squeeze(tensor: tsr.Tensor, dim: int | Size | None, ctx: DotDict[str, list]
 @backward_graph(UnsqueezeBackward)
 def _unsqueeze(tensor: tsr.Tensor, dim: int | Size, ctx: DotDict[str, list]) -> tsr.Tensor:
     if isinstance(dim, int):
-        dim = [dim]
+        dim = (dim,)
+    else:
+        dim = tuple(dim)
 
     check_dims(dim, tensor.ndim + len(dim))
 
-    ctx.dim = tuple(dim)
+    ctx.dim = dim
     return tsr.tensor(
         data=np.expand_dims(tensor._data, dim),
         requires_grad=tensor.requires_grad,
