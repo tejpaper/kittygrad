@@ -6,4 +6,4 @@ from .create import (
     zeros,
     zeros_like,
 )
-from .tensor import tensor, Tensor
+from .tensor import tensor, Tensor, Operand

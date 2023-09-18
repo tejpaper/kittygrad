@@ -7,7 +7,6 @@ from conftest import *
         ((1,), (1,), (1,), (1,), (0,)),
     ])
 def test_engine(shape_a, shape_b, shape_c, shape_d, squeeze_dims, compare):
-    print()
     init_kitty, init_torch = init_tensors(shape_a, shape_b, shape_c, shape_d, squeeze_dims=squeeze_dims)
     kitty_a, kitty_b, kitty_c, kitty_d = init_kitty
     torch_a, torch_b, torch_c, torch_d = init_torch
@@ -138,35 +137,91 @@ def test_engine(shape_a, shape_b, shape_c, shape_d, squeeze_dims, compare):
 
     zero_grad()
 
-    # gradient accumulation without a computational graph
-    kitty_a.backward(kitty.ones_like(kitty_a))
-    torch_a.backward(torch.ones_like(torch_a))
+    # initializing the gradient with zeros
+    kitty_e = kitty_a ** kitty_b
+    torch_e = torch_a ** torch_b
+    kitty_e.backward(kitty.zeros_like(kitty_e))
+    torch_e.backward(torch.zeros_like(torch_e))
     assert compare(kitty_a.grad, torch_a.grad)
+    assert compare(kitty_b.grad, torch_b.grad)
 
-    zero_grad()
+    zero_grad()  # do nothing :)
+
+
+def test_entry_point(compare):
+    kitty_a = kitty.tensor([2.], requires_grad=True)
+    torch_a = torch.tensor([2.], requires_grad=True)
+
+    # no backward graph at all
+    kitty_a.requires_grad = False
+    with pytest.raises(RuntimeError) as msg:
+        (kitty_a * 2).sum().backward()
+    assert str(msg.value) == "Tensor does not require grad and does not have a grad_fn."
+    assert kitty_a.grad is None
+    kitty_a.requires_grad = True
+
+    # non-scalar implicit gradient initialization
+    with pytest.raises(RuntimeError) as msg:
+        kitty_a.backward()
+    assert str(msg.value) == "Grad can be implicitly created only for scalar outputs."
+    assert kitty_a.grad is None
+
+    # wrong initial gradient size
+    with pytest.raises(RuntimeError) as msg:
+        (2 * kitty_a).backward(kitty.ones_like(kitty_a).unsqueeze(0))
+    assert str(msg.value) == "Initial gradient has data of a different size."
+    assert kitty_a.grad is None
+
+    # gradient accumulation without a computational graph with wrong size
+    with pytest.raises(RuntimeError) as msg:
+        kitty_a.backward(kitty.ones_like(kitty_a).unsqueeze(0))
+    assert str(msg.value) == "Assigned grad has data of a different size."
+    assert kitty_a.grad is None
 
     # wrong initial gradient dtype
     with pytest.raises(TypeError) as msg:
         (kitty_a * 2).backward(kitty.ones_like(kitty_a, dtype=kitty.float16))
-    assert str(msg.value) == "Assigned grad has data of a different type."
-
-    zero_grad()
+    assert str(msg.value) == "Initial gradient has data of a different type."
+    assert kitty_a.grad is None
 
     # gradient accumulation without a computational graph with wrong dtype
     with pytest.raises(TypeError) as msg:
         kitty_a.backward(kitty.ones_like(kitty_a, dtype=kitty.float16))
     assert str(msg.value) == "Assigned grad has data of a different type."
+    assert kitty_a.grad is None
 
-    zero_grad()
+    # gradient accumulation without a computational graph
+    kitty_a.backward(kitty.ones_like(kitty_a))
+    torch_a.backward(torch.ones_like(torch_a))
+    assert compare(kitty_a.grad, torch_a.grad)
 
 
-# @pytest.mark.parametrize(
-#     'shape', [
-#         (1,)
-#     ])
-# def test_entry_point(shape):
-#     print()
-#     kitty_a, torch_a = map(next, init_tensors(shape))
-#
-#     pass
+@pytest.mark.parametrize(
+    'shape,squeeze_dims', [
+        ((1, 3, 4), ()),
+        ((1,), ()),
+        ((1,), (0,)),
+    ])
+def test_version_control(shape, squeeze_dims, compare):
+    kitty_a, torch_a = map(next, init_tensors(shape, squeeze_dims=squeeze_dims))
 
+    # warning about possible problems with .retain_grad()
+    kitty_b = kitty_a * 2
+    kitty_b.retain_grad()
+    kitty_c = 3 * kitty_b
+    kitty_b += 1
+    kitty_d = (kitty_c + kitty_b).sum()
+
+    with pytest.warns(UserWarning, match="An attempt to assign a gradient to a tensor with retains_grad=True"):
+        kitty_d.backward()
+
+    torch_b = torch_a * 2
+    torch_b.retain_grad()
+    torch_c = 3 * torch_b
+    torch_b += 1
+    torch_d = (torch_c + torch_b).sum()
+    torch_d.backward()
+
+    assert compare(kitty_d, torch_d)
+    assert compare(kitty_a.grad, torch_a.grad)
+    assert compare(kitty_b.grad, torch_b.grad)  # undefined behavior, not recommended

@@ -1,4 +1,46 @@
 from conftest import *
+from kittygrad.utils import DEFAULT_DTYPE
+
+
+def test_initialization():
+    with pytest.raises(TypeError) as msg:
+        kitty.tensor(1, dtype=int)
+    assert str(msg.value) == "Data type 'int' is not supported."
+
+    with pytest.raises(TypeError) as msg:
+        kitty.tensor(1, dtype=float)
+    assert str(msg.value) == "Data type 'float' is not supported."
+
+    with pytest.raises(TypeError) as msg:
+        kitty.tensor(1, dtype=np.int64)
+    assert str(msg.value) == "Data type 'int64' is not supported."
+
+    with pytest.raises(TypeError) as msg:
+        kitty.tensor(1, dtype=np.longlong)
+    assert str(msg.value) == "Data type 'longlong' is not supported."
+
+    with pytest.raises(RuntimeError) as msg:
+        kitty.tensor(kitty.tensor([1, 1]))
+    assert str(msg.value) == ("If you want to create a new tensor from another, use "
+                              "sourceTensor.detach() and then specify the requires_grad attribute.")
+
+    with pytest.warns(UserWarning, match="Passed NumPy array has an unsupported data type."):
+        tensor = kitty.tensor(np.array([1, 1], dtype=np.int8))
+    assert tensor.dtype == DEFAULT_DTYPE
+    assert kitty.tensor(1).dtype == DEFAULT_DTYPE
+
+    data = np.array([1, 1], dtype=np.int8)
+    tensor = kitty.tensor(data, dtype=np.float32)
+    assert tensor.dtype == kitty.float32
+
+    data = np.array([1, 1], dtype=np.float32)
+    tensor = kitty.tensor(data, dtype=kitty.float64)
+    data[0] = 100
+    assert tensor[0].item() == 1
+
+    tensor = kitty.tensor(data, dtype=kitty.float32)
+    data[0] = 200
+    assert tensor[0].item() == 200
 
 
 def test_repr():
@@ -71,24 +113,32 @@ def test_repr():
     assert repr(kitty.tensor(1, dtype=kitty.double)) == repr(torch.tensor(1, dtype=torch.double)).replace('torch.', '')
 
 
-def test_exceptions():
-    with pytest.raises(TypeError) as msg:
-        kitty.tensor(1, dtype=int)
-    assert str(msg.value) == "Data type 'int' is not supported."
+def test_getters():
+    kitty_a = kitty.tensor(1, requires_grad=True)
+    assert kitty_a.grad is None
+    assert kitty_a.grad_fn is None
 
-    with pytest.raises(TypeError) as msg:
-        kitty.tensor(1, dtype=float)
-    assert str(msg.value) == "Data type 'float' is not supported."
+    kitty_b = kitty_a * 2
+    assert not kitty_b.is_leaf
+    assert kitty_b.grad_fn is not None
 
-    with pytest.raises(TypeError) as msg:
-        kitty.tensor(1, dtype=np.int64)
-    assert str(msg.value) == "Data type 'int64' is not supported."
+    with pytest.warns(UserWarning,
+                      match="The .grad attribute of a Tensor that is not a leaf Tensor is being accessed."):
+        kitty_b.grad
 
-    with pytest.raises(TypeError) as msg:
-        kitty.tensor(1, dtype=np.longlong)
-    assert str(msg.value) == "Data type 'longlong' is not supported."
+    assert not kitty_b.retains_grad
+    kitty_b.retain_grad()
+    assert kitty_b.retains_grad
 
-    tensor = kitty.tensor([1, 1])  # kitty.float32
+    assert kitty_a.version == 0
+    assert kitty_b.version == 0
+
+    kitty_b.backward()
+    assert kitty_b.grad.item() == 1
+
+
+def test_setters():
+    tensor = kitty.tensor([1, 1])
 
     with pytest.raises(TypeError) as msg:
         tensor.grad = 0
@@ -114,38 +164,17 @@ def test_exceptions():
         tensor.grad = kitty.tensor([0.9, -0.5], dtype=kitty.float)
 
     tensor.grad = None
-    tensor.requires_grad = False
-    tensor.grad = None
+    tensor.requires_grad = True
 
+    with pytest.raises(RuntimeError) as msg:
+        (tensor * 2).requires_grad = True
+    assert str(msg.value) == "You can only change requires_grad flags of leaf variables."
 
-def test_arithmetics():  # TODO: remove
-    tensor = kitty.tensor(3)
-
-    tensor + 1
-    1 + tensor
-    tensor + 1.
-    1. + tensor
-
-    with pytest.raises(TypeError) as msg:
-        tensor + (1 + 1j)
-    assert str(msg.value) == "Unsupported operand type(s) for +: 'Tensor' and 'complex'."
-
-    with pytest.raises(TypeError) as msg:
-        (1 + 1j) * tensor
-    assert str(msg.value) == "Unsupported operand type(s) for *: 'complex' and 'Tensor'."
-
-    with pytest.raises(TypeError) as msg:
-        tensor + None
-    assert str(msg.value) == "Unsupported operand type(s) for +: 'Tensor' and 'NoneType'."
-
-    with pytest.raises(NotImplementedError) as msg:
-        np.array(2, dtype=np.int8) + tensor
-    assert str(msg.value) == "Unsupported operation with NumPy array. Try swapping operands."
-    tensor + np.array(2, dtype=np.int8)  # it's ok, auto cast
-
-    with pytest.raises(TypeError) as msg:
-        kitty.tensor(0, dtype=kitty.half) * tensor
-    assert str(msg.value) == "Operands type mismatch: float16 != float32."
+    with pytest.raises(RuntimeError) as msg:
+        (tensor * 2).requires_grad = False
+    assert str(msg.value) == ("You can only change requires_grad flags of leaf variables."
+                              "If you want to use a computed variable in a subgraph that doesn't "
+                              "require differentiation use var_no_grad = var.detach().")
 
 
 def test_indexing():  # TODO: move to test_view.py
@@ -202,14 +231,30 @@ def test_indexing():  # TODO: move to test_view.py
 
 
 def test_methods():
-    kitty_tensor = kitty.tensor([1, 2, 3], dtype=kitty.double)
-    assert kitty_tensor.dtype == kitty.double
+    tensor = kitty.tensor([1, 2, 3], dtype=kitty.double)
+    assert tensor.dtype == kitty.double
 
-    kitty_detached = kitty_tensor.detach()
-    kitty_detached[1] = 1000
+    detached = tensor.detach()
+    detached[1] = 1000
 
-    assert kitty_tensor is not kitty_detached
+    assert tensor is not detached
 
-    assert kitty_tensor.type(kitty.float64) is kitty_tensor
-    assert kitty_tensor.type(kitty.float16).dtype == kitty.float16
-    assert kitty_tensor.type(kitty.float32).dtype == kitty.float32
+    assert tensor.type(kitty.float64) is tensor
+    assert tensor.type(kitty.float16).dtype == kitty.float16
+    assert tensor.type(kitty.float32).dtype == kitty.float32
+
+    with pytest.raises(RuntimeError) as msg:
+        tensor.item()
+    assert str(msg.value) == "A Tensor with 3 elements cannot be converted to Scalar."
+
+    with pytest.raises(RuntimeError) as msg:
+        tensor.retain_grad()
+    assert str(msg.value) == "Can't retain_grad on Tensor that has requires_grad=False."
+
+    tensor.requires_grad = True
+    tensor.retain_grad()
+    assert not tensor.retains_grad
+
+
+def test_create():
+    pass

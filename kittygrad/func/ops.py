@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..autograd.engine import backward_graph
 from ..autograd.ops import (
     ToCopyBackward,
     NegBackward,
@@ -20,7 +21,6 @@ from ..autograd.ops import (
     MvBackward,
     BmmBackward,
 )
-from ..autograd.engine import backward_graph
 from ..utils import *
 
 
@@ -138,10 +138,12 @@ def _idiv(tensor: tsr.Tensor, other: tsr.Tensor, ctx: DotDict[str, list]) -> tsr
     tensor._requires_grad |= other.requires_grad
     if tensor.requires_grad:
         ctx.other_inv = other_inv
+
+    np.multiply(tensor._data, other_inv, out=tensor._data, **NP_OPS_CONFIG)
+
     if other.requires_grad:
         ctx.out_array = tensor._data.copy()
 
-    np.multiply(tensor._data, other_inv, out=tensor._data, **NP_OPS_CONFIG)
     return tensor
 
 

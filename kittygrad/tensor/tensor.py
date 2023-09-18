@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from ctypes import c_int64 as mutable_int
-from functools import wraps
 import warnings
+from ctypes import c_int64 as mutable_int
 
 import kittygrad.func as func
 from ..autograd.engine import FnBackward, check_locks
+from ..func.handler import autocast, inplace, view
 from ..utils import *
 
 
@@ -30,7 +30,6 @@ class Tensor:
 
         supported_dtype = dtype in ALL_DTYPES
 
-        # TODO: test
         if not dtype_unknown and not supported_dtype:
             raise TypeError(f"Data type '{dtype.__name__}' is not supported.")
         elif dtype_unknown and not supported_dtype:
@@ -98,16 +97,17 @@ class Tensor:
     @requires_grad.setter
     def requires_grad(self, new_value: bool) -> None:
         if not self._is_leaf:
-            raise RuntimeError(  # TODO: test (backward)                               (^v^)
-                "You can only change requires_grad flags of leaf variables." + "" if new_value else
-                "If you want to use a computed variable in a subgraph that doesn't "
-                "require differentiation use var_no_grad = var.detach().")
+            raise RuntimeError(
+                "You can only change requires_grad flags of leaf variables." + (
+                    "" if new_value else
+                    "If you want to use a computed variable in a subgraph that doesn't "
+                    "require differentiation use var_no_grad = var.detach()."))
 
         self._requires_grad = new_value
 
     @property
     def grad(self) -> Tensor | None:
-        if not self._is_leaf and not self._retains_grad:  # TODO: test
+        if not self._is_leaf and not self._retains_grad:
             warnings.warn("The .grad attribute of a Tensor that is not a leaf Tensor is being accessed. "
                           "Its .grad attribute won't be populated during autograd.backward(). If you "
                           "indeed want the .grad field to be populated for a non-leaf Tensor, use .retain_grad() "
@@ -129,9 +129,9 @@ class Tensor:
         elif id(new_grad) == id(self):
             raise RuntimeError("Can't assign Variable as its own grad.")
         elif new_grad.dtype != self.dtype:
-            grad_type_error()
+            raise TypeError("Assigned grad has data of a different type.")
         elif new_grad.shape != self.shape:
-            grad_shape_error()
+            raise RuntimeError("Assigned grad has data of a different size.")
         else:
             self._grad = new_grad._data
 
@@ -157,67 +157,10 @@ class Tensor:
     def version(self) -> int:
         return self._version.value
 
-    # ================================================= Generalization =================================================
+    # ================================================== Numpy Issues ==================================================
 
     def __array_ufunc__(*args, **kwargs) -> typing.NoReturn:
         raise NotImplementedError("Unsupported operation with NumPy array. Try swapping operands.")  # TODO: mb develop
-
-    @staticmethod
-    def __operator_handler(op_symbol: str, reverse: bool = False, broadcast: bool = True) -> typing.Callable:
-        def handler_decor(operator: typing.Callable) -> typing.Callable:
-
-            @wraps(operator)
-            def handler(self, other, *args, **kwargs) -> Tensor:
-                if args or kwargs:
-                    raise RuntimeError("Incorrect use of operator handler.")
-
-                if isinstance(other, Scalar):
-                    other = tensor(np.full(self.shape, other, dtype=self.dtype))
-                elif isinstance(other, np.ndarray):
-                    other = tensor(other, dtype=self.dtype)
-
-                if reverse:
-                    first_operand, second_operand = other, self
-                else:
-                    first_operand, second_operand = self, other
-
-                if type(other) == type(self):
-                    check_types(first_operand, second_operand)
-                    if broadcast:
-                        self, other = func.broadcast_tensors(self, other)
-                    return operator(self, other)
-
-                raise TypeError("Unsupported operand type(s) for {}: '{}' and '{}'."
-                                .format(op_symbol, type(first_operand).__name__, type(second_operand).__name__))
-
-            return handler
-        return handler_decor
-
-    @staticmethod
-    def __inplace_operation(method: typing.Callable) -> typing.Callable:  # TODO: test
-        @wraps(method)
-        def wrapper(self, *args, **kwargs) -> Tensor:
-            if self._is_leaf and self._requires_grad:
-                raise RuntimeError("A leaf Variable that requires grad is being used in an in-place operation.")
-            elif not self._data.flags['WRITEABLE']:
-                raise RuntimeError("The inplace operation cannot be applied to a read-only tensor. If this "
-                                   "tensor is a view of another, you can try to do the same operation with it.")
-
-            out = method(self, *args, **kwargs)
-            self._version.value += 1
-            return out
-
-        return wrapper
-
-    @staticmethod
-    def __view(method: typing.Callable) -> typing.Callable:
-        @wraps(method)
-        def wrapper(self, *args, **kwargs) -> Tensor:
-            new_view = method(self, *args, **kwargs)
-            new_view._version = self._version
-            return new_view
-
-        return wrapper
 
     # ====================================================== Func ======================================================
 
@@ -242,43 +185,43 @@ class Tensor:
     def relu(self) -> Tensor:
         return func._relu(self)
 
-    @__operator_handler(op_symbol='+')
+    @autocast(op_symbol='+')
     def __add__(self, other: Operand) -> Tensor:
         return func._add(self, other)
 
-    @__operator_handler(op_symbol='+', reverse=True)
+    @autocast(op_symbol='+', reverse=True)
     def __radd__(self, other: Operand) -> Tensor:
         return func._add(self, other)
 
-    @__operator_handler(op_symbol='-')
+    @autocast(op_symbol='-')
     def __sub__(self, other: Operand) -> Tensor:
         return func._sub(self, other)
 
-    @__operator_handler(op_symbol='-', reverse=True)
+    @autocast(op_symbol='-', reverse=True)
     def __rsub__(self, other: Operand) -> Tensor:
         return func._sub(other, self)
 
-    @__operator_handler(op_symbol='*')
+    @autocast(op_symbol='*')
     def __mul__(self, other: Operand) -> Tensor:
         return func._mul(self, other)
 
-    @__operator_handler(op_symbol='*', reverse=True)
+    @autocast(op_symbol='*', reverse=True)
     def __rmul__(self, other: Operand) -> Tensor:
         return func._mul(self, other)
 
-    @__operator_handler(op_symbol='/')
+    @autocast(op_symbol='/')
     def __truediv__(self, other: Operand) -> Tensor:
         return func._div(self, other)
 
-    @__operator_handler(op_symbol='/', reverse=True)
+    @autocast(op_symbol='/', reverse=True)
     def __rtruediv__(self, other: Operand) -> Tensor:
         return func._div(other, self)
 
-    @__operator_handler(op_symbol='**')
+    @autocast(op_symbol='**')
     def __pow__(self, power: Operand) -> Tensor:
         return func._pow(self, power)
 
-    @__operator_handler(op_symbol='**', reverse=True)
+    @autocast(op_symbol='**', reverse=True)
     def __rpow__(self, power: Operand) -> Tensor:
         return func._pow(power, self)
 
@@ -290,38 +233,38 @@ class Tensor:
 
     # TODO: std, abs
 
-    @__operator_handler(op_symbol='@', broadcast=False)
+    @autocast(op_symbol='@', shape=False)
     def __matmul__(self, other: np.ndarray | Tensor) -> Tensor:
         return func.matmul(self, other)
 
-    @__operator_handler(op_symbol='@', reverse=True, broadcast=False)
+    @autocast(op_symbol='@', reverse=True, shape=False)
     def __rmatmul__(self, other: Tensor) -> Tensor:  # TODO: other is only a tensor (for now)
         return func.matmul(other, self)
 
     # ================================================== Inplace Func ==================================================
 
-    @__inplace_operation
-    @__operator_handler(op_symbol='+=')
+    @autocast(op_symbol='+=', dtype=False, shape=False)
+    @inplace
     def __iadd__(self, other: Operand) -> Tensor:
         return func._iadd(self, other)
 
-    @__inplace_operation
-    @__operator_handler(op_symbol='-=')
+    @autocast(op_symbol='-=', dtype=False, shape=False)
+    @inplace
     def __isub__(self, other: Operand) -> Tensor:
         return func._isub(self, other)
 
-    @__inplace_operation
-    @__operator_handler(op_symbol='*=')
+    @autocast(op_symbol='*=', dtype=False, shape=False)
+    @inplace
     def __imul__(self, other: Operand) -> Tensor:
         return func._imul(self, other)
 
-    @__inplace_operation
-    @__operator_handler(op_symbol='/=')
+    @autocast(op_symbol='/=', dtype=False, shape=False)
+    @inplace
     def __itruediv__(self, other: Operand) -> Tensor:
         return func._idiv(self, other)
 
-    @__inplace_operation
-    @__operator_handler(op_symbol='**=')
+    @autocast(op_symbol='**=', dtype=False, shape=False)
+    @inplace
     def __ipow__(self, other: Operand) -> Tensor:
         return func._ipow(self, other)
 
@@ -330,43 +273,46 @@ class Tensor:
 
     # ====================================================== View ======================================================
 
-    @__view
+    @view
     def transpose(self, dim0: int, dim1: int) -> Tensor:
         return func._transpose(self, dim0, dim1)
 
     @property
     def mT(self) -> Tensor:  # noqa: torch-like API
-        return self.transpose(-2, -1)
+        if self.ndim < 2:
+            raise RuntimeError("tensor.mT is only supported on matrices or batches of "
+                               f"matrices. Got {self.ndim}D tensor.")
+        else:
+            return self.transpose(-2, -1)
 
-    @__view
+    @view
     def permute(self, dims: Size) -> Tensor:
         return func._permute(self, dims)
 
-    @__view
+    @view
     def squeeze(self, dim: int | Size | None = None) -> Tensor:
         return func._squeeze(self, dim)
 
-    @__view
+    @view
     def unsqueeze(self, dim: int | Size) -> Tensor:
         return func._unsqueeze(self, dim)
 
-    @__view
     def expand(self, *sizes: int) -> Tensor:
         return func.broadcast_to(self, sizes)
 
     def __getitem__(self, *args, **kwargs) -> Tensor:
         if self._requires_grad:
-            pass  # TODO: SelectBackward
+            return tensor(data=self._data.__getitem__(*args, **kwargs))  # TODO: SelectBackward
         else:
             return tensor(data=self._data.__getitem__(*args, **kwargs))
 
-    @__inplace_operation
+    # @inplace  TODO
     def __setitem__(self, key, value) -> None:
         if type(value) == type(self):
             value = value._data
 
         if self._requires_grad:
-            pass  # TODO: CopySlices
+            self._data.__setitem__(key, value)  # TODO: CopySlices
         else:
             self._data.__setitem__(key, value)
 
@@ -380,6 +326,12 @@ class Tensor:
 
     def nelement(self) -> int:
         return self._data.size
+
+    def item(self) -> Scalar:
+        if self.nelement() != 1:
+            raise RuntimeError(f"A Tensor with {self.nelement()} elements cannot be converted to Scalar.")
+        else:
+            return self._data.item()
 
     def detach(self) -> Tensor:  # unlike torch makes a full copy of a tensor
         return tensor(self._data.copy())
@@ -408,9 +360,9 @@ class Tensor:
         if self._grad_fn is None:
             redundant_backward_error()
         elif self.shape != gradient.shape:
-            grad_shape_error()
+            raise RuntimeError("Initial gradient has data of a different size.")
         elif self.dtype != gradient.dtype:
-            grad_type_error()
+            raise TypeError("Initial gradient has data of a different type.")
         elif self._grad_fn._lock != 0:
             warnings.warn("A .backward() call from the middle of the computational graph was noticed.")
 

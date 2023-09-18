@@ -8,7 +8,6 @@ from conftest import *
         ((1,), (0,)),
     ])
 def test_activation(shape, squeeze_dims, compare):
-    print()
     kitty_a, torch_a = map(next, init_tensors(shape, squeeze_dims=squeeze_dims))
 
     def zero_grad():
@@ -49,7 +48,3 @@ def test_activation(shape, squeeze_dims, compare):
     zero_grad()
 
     # TODO: LeakyReLU, SiLU
-
-
-def test_activation_exceptions():
-    pass

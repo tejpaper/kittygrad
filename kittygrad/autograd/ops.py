@@ -61,7 +61,9 @@ class IMulBackward(FnBackward):
         factor_1, factor_2 = self._ctx.saved_arrays
         fn_1, fn_2 = self._next_functions
 
-        fn_1.propagate(factor_2 * self._grad)
+        if fn_1 is not None:
+            fn_1.propagate(factor_2 * self._grad)
+
         if fn_2 is not None:
             fn_2.propagate(factor_1 * self._grad)
 
@@ -77,7 +79,7 @@ class DivBackward(FnBackward):  # PowBackward + MulBackward
 
         if divisor_fn is not None:
             if self._ctx.out.version != self._versions.out:
-                inplace_modification_error()
+                inplace_modification_error()  # TODO: test
             divisor_fn.propagate(-self._ctx.out._data * self._grad)
 
 
@@ -87,7 +89,9 @@ class IDivBackward(FnBackward):
 
         self._grad *= self._ctx.other_inv
 
-        dividend_fn.propagate(self._grad)
+        if dividend_fn is not None:
+            dividend_fn.propagate(self._grad)
+
         if divisor_fn is not None:
             divisor_fn.propagate(-self._ctx.out_array * self._grad)
 
@@ -95,7 +99,7 @@ class IDivBackward(FnBackward):
 class PowBackward(FnBackward):
     def _propagate(self) -> None:
         if self._ctx.out.version != self._versions.out:
-            inplace_modification_error()
+            inplace_modification_error()  # TODO: test
 
         base, exponent = self._ctx.saved_tensors
         base_fn, exponent_fn = self._next_functions
@@ -116,7 +120,9 @@ class IPowBackward(FnBackward):
 
         self._grad *= self._ctx.out_array
 
-        base_fn.propagate(exponent / base * self._grad)
+        if base_fn is not None:
+            base_fn.propagate(exponent / base * self._grad)
+
         if exponent_fn is not None:
             exponent_fn.propagate(np.log(base) * self._grad)
 
@@ -142,7 +148,7 @@ class SumBackward(FnBackward):
         self._next_functions[0].propagate(np.tile(self._grad.reshape(expanded_shape), reps))
 
 
-class MeanBackward(SumBackward):  # SumBackward + MulBackward
+class MeanBackward(SumBackward):  # SumBackward + DivBackward
     def _propagate(self) -> None:
         expanded_shape, reps = super()._separate_dims()
         self._next_functions[0].propagate(

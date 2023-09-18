@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..autograd.engine import backward_graph
 from ..autograd.view import (
     TransposeBackward,
     PermuteBackward,
@@ -7,7 +8,7 @@ from ..autograd.view import (
     UnsqueezeBackward,
     ExpandBackward,
 )
-from ..autograd.engine import backward_graph
+from .handler import view
 from ..utils import *
 
 
@@ -33,8 +34,8 @@ def _permute(tensor: tsr.Tensor, dims: Size, ctx: DotDict[str, list]) -> tsr.Ten
         raise RuntimeError("Number of dimensions in the tensor input does not match "
                            "the length of the desired ordering of dimensions i.e. "
                            f"input.dim() = {tensor.ndim} is not equal to len(dims) = {len(dims)}.")
-    else:
-        check_dims(dims, tensor.ndim)
+
+    check_dims(dims, tensor.ndim)
 
     ctx.dims = dims
     return tsr.tensor(
@@ -46,11 +47,12 @@ def _permute(tensor: tsr.Tensor, dims: Size, ctx: DotDict[str, list]) -> tsr.Ten
 @backward_graph(SqueezeBackward)
 def _squeeze(tensor: tsr.Tensor, dim: int | Size | None, ctx: DotDict[str, list]) -> tsr.Tensor:
     if isinstance(dim, int):
+        check_dim(dim, tensor.ndim)
         dim = (dim,) if tensor.shape[dim] == 1 else ()
-    elif dim is not None:
-        dim = tuple(d for d in dim if tensor.shape[d] == 1)
 
-    check_dims(dim, tensor.ndim)
+    elif dim is not None:
+        check_dims(dim, tensor.ndim)
+        dim = tuple(d for d in dim if tensor.shape[d] == 1)
 
     ctx.shape = tensor.shape
     return tsr.tensor(
@@ -86,9 +88,11 @@ def _expand(tensor: tsr.Tensor, shape: Size, expanded_dims: Size, offset: int, c
     )
 
 
+@view
 def broadcast_to(input: tsr.Tensor, shape: Size) -> tsr.Tensor:  # noqa: torch-like API
-    if any(dim <= 0 and dim != -1 for dim in shape):
-        raise RuntimeError(f"The expanded size of the tensor ({min(shape)}) isn't allowed.")  # TODO: bug
+    for dim in shape:
+        if dim <= 0 and dim != -1:
+            raise RuntimeError(f"The expanded size of the tensor ({dim}) isn't allowed.")
 
     old_shape = list(input.shape)
     new_shape = list(shape)
@@ -110,7 +114,7 @@ def broadcast_to(input: tsr.Tensor, shape: Size) -> tsr.Tensor:  # noqa: torch-l
             if old_shape[i - offset] != 1:
                 raise RuntimeError("The expanded size of the tensor ({}) must match the existing size ({}) "
                                    "at non-singleton dimension {}. Target sizes: {}. Tensor sizes: {}."
-                                   .format(new_shape[i], old_shape[i - offset], i, list(shape), old_shape))
+                                   .format(new_shape[i], old_shape[i - offset], i, tuple(shape), tuple(old_shape)))
 
             expanded_dims.append(i)
 

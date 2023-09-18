@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import abc
-from functools import wraps
 import warnings
+from functools import wraps
 
 from ..utils import *
 
@@ -39,7 +39,6 @@ class AccumulateGrad(BackwardAccess):  # ag short
         np.add(self._tensor._grad, grad, out=self._tensor._grad, **NP_OPS_CONFIG)
 
 
-# TODO: test memory leaks, mb weak pointers are needed
 class FnBackward(BackwardAccess, abc.ABC):  # fn short
     def __init__(self,
                  ctx: DotDict[str, list[typing.Any] | tsr.Tensor],
@@ -78,7 +77,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
             if tensor is not None and tensor.version != old_version:
-                inplace_modification_error()
+                inplace_modification_error()  # TODO: test
 
         # hook
         if self._ctx.out.retains_grad:
@@ -98,12 +97,14 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
     def backward_graph_decor(function: typing.Callable) -> typing.Callable:
 
         @wraps(function)
-        def wrapper(*args) -> tsr.Tensor:
+        def builder(*args) -> tsr.Tensor:
             ctx = DotDict(saved_tensors=[])
             out = function(*args, ctx)
 
             if not out.requires_grad:
                 return out
+
+            out._is_leaf = False
 
             ctx.out = out
             next_functions = []
@@ -119,12 +120,11 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
 
                 next_functions.append(tensor_grad_fn)
 
-            out._is_leaf = False
             out._grad_fn = node(ctx=ctx, next_functions=next_functions)
 
             return out
 
-        return wrapper
+        return builder
     return backward_graph_decor
 
 
