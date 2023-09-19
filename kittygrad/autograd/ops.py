@@ -14,6 +14,7 @@ class NegBackward(FnBackward):
 
 class ExpBackward(FnBackward):
     def _propagate(self) -> None:
+        self._inplace_modification_check()
         self._grad *= self._ctx.out._data
         self._next_functions[0].propagate(self._grad)
 
@@ -33,7 +34,7 @@ class AddBackward(FnBackward):
                 next_fn.propagate(self._grad)
 
 
-class SubBackward(FnBackward):  # NegBackward + AddBackward
+class SubBackward(FnBackward):
     def _propagate(self) -> None:
         fn_1, fn_2 = self._next_functions
 
@@ -68,7 +69,7 @@ class IMulBackward(FnBackward):
             fn_2.propagate(factor_1 * self._grad)
 
 
-class DivBackward(FnBackward):  # PowBackward + MulBackward
+class DivBackward(FnBackward):
     def _propagate(self) -> None:
         dividend_fn, divisor_fn = self._next_functions
 
@@ -78,8 +79,7 @@ class DivBackward(FnBackward):  # PowBackward + MulBackward
             dividend_fn.propagate(self._grad)
 
         if divisor_fn is not None:
-            if self._ctx.out.version != self._versions.out:
-                inplace_modification_error()  # TODO: test
+            self._inplace_modification_check()
             divisor_fn.propagate(-self._ctx.out._data * self._grad)
 
 
@@ -98,8 +98,7 @@ class IDivBackward(FnBackward):
 
 class PowBackward(FnBackward):
     def _propagate(self) -> None:
-        if self._ctx.out.version != self._versions.out:
-            inplace_modification_error()  # TODO: test
+        self._inplace_modification_check()
 
         base, exponent = self._ctx.saved_tensors
         base_fn, exponent_fn = self._next_functions
@@ -148,7 +147,7 @@ class SumBackward(FnBackward):
         self._next_functions[0].propagate(np.tile(self._grad.reshape(expanded_shape), reps))
 
 
-class MeanBackward(SumBackward):  # SumBackward + DivBackward
+class MeanBackward(SumBackward):
     def _propagate(self) -> None:
         expanded_shape, reps = super()._separate_dims()
         self._next_functions[0].propagate(

@@ -2,7 +2,7 @@ from .engine import FnBackward
 from ..utils import *
 
 
-class TransposeBackward(FnBackward):  # PermuteBackward
+class TransposeBackward(FnBackward):
     def _propagate(self) -> None:
         self._next_functions[0].propagate(np.swapaxes(self._grad, self._ctx.dim0, self._ctx.dim1))
 

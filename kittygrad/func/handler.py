@@ -73,7 +73,7 @@ def inplace(*autocast_args, **autocast_kwargs) -> typing.Callable:
             cast_to = np.result_type(tensor.dtype, other.dtype)
 
             if tensor.dtype != cast_to:
-                raise RuntimeError("Output with dtype '{}' doesn't match the broadcast dtype '{}'."
+                raise RuntimeError("Output with dtype '{}' doesn't match the promotion dtype '{}'."
                                    .format(tensor.dtype, cast_to))
 
             prev_shape = tensor.shape

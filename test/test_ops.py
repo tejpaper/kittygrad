@@ -381,7 +381,7 @@ def test_matmul_exceptions():
 
 @pytest.mark.parametrize(
     'dtypes', [
-        # [np.float32, np.float32],
+        [np.float32, np.float32],
         [np.float64, np.float32],
         [np.float64, np.float64],
     ])
@@ -512,7 +512,7 @@ def test_inplace_exceptions(compare):
 
     with pytest.raises(RuntimeError) as msg:
         kitty_a *= kitty_b
-    assert str(msg.value) == "Output with dtype 'float16' doesn't match the broadcast dtype 'float32'."
+    assert str(msg.value) == "Output with dtype 'float16' doesn't match the promotion dtype 'float32'."
 
     kitty_a = kitty.tensor([3, 3, 3])
 

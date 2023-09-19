@@ -44,7 +44,6 @@ class Comparison:
 
         if exact_match:
             self.exact += 1
-            self.approximate += 1
             return True
 
         if kitty_array.shape != torch_array.shape:
@@ -70,7 +69,7 @@ class Comparison:
                 f'mean ratio: {(np.mean(self.ratios) if self.ratios else 0):.4f}')
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def compare():
     cmp = Comparison()
     yield cmp

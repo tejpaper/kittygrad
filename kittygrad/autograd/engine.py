@@ -59,12 +59,16 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         )
 
     @property  # not writable
-    def next_functions(self) -> list[FnBackward | None]:
-        return self._next_functions
+    def next_functions(self) -> tuple[FnBackward | None, ...]:
+        return tuple(self._next_functions)
 
     @abc.abstractmethod
     def _propagate(self) -> None:
         pass  # self._grad can be changed here as there is a hook before it
+
+    def _inplace_modification_check(self) -> None:
+        if self._ctx.out.version != self._versions.out:
+            inplace_modification_error()
 
     def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
         assert id(self._grad) != id(prev_grad)  # TODO: remove me after a bunch of tests
@@ -78,7 +82,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
             if tensor is not None and tensor.version != old_version:
-                inplace_modification_error()  # TODO: test
+                inplace_modification_error()
 
         # hook
         if self._ctx.out.retains_grad:
