@@ -233,38 +233,33 @@ class Tensor:
 
     # TODO: std, abs
 
-    @autocast(op_symbol='@', shape=False)
+    @autocast(op_symbol='@', broadcasting=False, prohibited_types=[Scalar])
     def __matmul__(self, other: np.ndarray | Tensor) -> Tensor:
-        return func.matmul(self, other)
+        return func.matmul.__wrapped__(self, other)
 
-    @autocast(op_symbol='@', reverse=True, shape=False)
+    @autocast(op_symbol='@', reverse=True, broadcasting=False, prohibited_types=[Scalar])
     def __rmatmul__(self, other: Tensor) -> Tensor:  # TODO: other is only a tensor (for now)
-        return func.matmul(other, self)
+        return func.matmul.__wrapped__(other, self)
 
     # ================================================== Inplace Func ==================================================
 
-    @autocast(op_symbol='+=', dtype=False, shape=False)
-    @inplace
+    @inplace(op_symbol='+=')
     def __iadd__(self, other: Operand) -> Tensor:
         return func._iadd(self, other)
 
-    @autocast(op_symbol='-=', dtype=False, shape=False)
-    @inplace
+    @inplace(op_symbol='-=')
     def __isub__(self, other: Operand) -> Tensor:
         return func._isub(self, other)
 
-    @autocast(op_symbol='*=', dtype=False, shape=False)
-    @inplace
+    @inplace(op_symbol='*=')
     def __imul__(self, other: Operand) -> Tensor:
         return func._imul(self, other)
 
-    @autocast(op_symbol='/=', dtype=False, shape=False)
-    @inplace
+    @inplace(op_symbol='/=')
     def __itruediv__(self, other: Operand) -> Tensor:
         return func._idiv(self, other)
 
-    @autocast(op_symbol='**=', dtype=False, shape=False)
-    @inplace
+    @inplace(op_symbol='**=')
     def __ipow__(self, other: Operand) -> Tensor:
         return func._ipow(self, other)
 

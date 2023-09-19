@@ -2,13 +2,18 @@ from conftest import *
 
 
 @pytest.mark.parametrize(
-    'shape,squeeze_dims', [
-        ((2, 3, 4, 5), ()),
-        ((2, 1, 8, 1), ()),
-        ((1,), (0,)),
+    'dtypes', [
+        [np.float32],
+        [np.float64],
     ])
-def test_activation(shape, squeeze_dims, compare):
-    kitty_a, torch_a = map(next, init_tensors(shape, squeeze_dims=squeeze_dims))
+@pytest.mark.parametrize(
+    'shapes,squeeze_dims', [
+        ([(2, 3, 4, 5)], ()),
+        ([(2, 1, 8, 1)], ()),
+        ([(1,)], (0,)),
+    ])
+def test_activation(shapes, dtypes, squeeze_dims, compare):
+    kitty_a, torch_a = map(next, init_tensors(shapes, dtypes, squeeze_dims=squeeze_dims))
 
     def zero_grad():
         kitty_a.grad = None

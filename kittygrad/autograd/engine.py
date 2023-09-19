@@ -4,6 +4,7 @@ import abc
 import warnings
 from functools import wraps
 
+import kittygrad.tensor as tsr
 from ..utils import *
 
 
@@ -23,7 +24,7 @@ class BackwardAccess(abc.ABC):  # ba short
 
 
 class AccumulateGrad(BackwardAccess):  # ag short
-    def __init__(self, tensor: tsr.Tensor) -> None:
+    def __init__(self, tensor: Tensor) -> None:
         self._tensor = tensor
 
     def propagate(self, grad: np.ndarray | np.generic) -> None:
@@ -41,7 +42,7 @@ class AccumulateGrad(BackwardAccess):  # ag short
 
 class FnBackward(BackwardAccess, abc.ABC):  # fn short
     def __init__(self,
-                 ctx: DotDict[str, list[typing.Any] | tsr.Tensor],
+                 ctx: DotDict[str, list[typing.Any] | Tensor],
                  next_functions: list[FnBackward | None]) -> None:
         self._ctx = ctx
         self._next_functions = next_functions
@@ -97,7 +98,7 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
     def backward_graph_decor(function: typing.Callable) -> typing.Callable:
 
         @wraps(function)
-        def builder(*args) -> tsr.Tensor:
+        def builder(*args) -> Tensor:
             ctx = DotDict(saved_tensors=[])
             out = function(*args, ctx)
 

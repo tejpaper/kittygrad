@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import kittygrad.tensor as tsr
 from ..autograd.engine import backward_graph
 from ..autograd.view import (
     TransposeBackward,
@@ -13,7 +14,7 @@ from ..utils import *
 
 
 @backward_graph(TransposeBackward)
-def _transpose(tensor: tsr.Tensor, dim0: int, dim1: int, ctx: DotDict[str, list]) -> tsr.Tensor:
+def _transpose(tensor: Tensor, dim0: int, dim1: int, ctx: DotDict[str, list]) -> Tensor:
     if tensor.ndim == 0:
         raise RuntimeError("Scalar cannot be transposed.")
 
@@ -29,7 +30,7 @@ def _transpose(tensor: tsr.Tensor, dim0: int, dim1: int, ctx: DotDict[str, list]
 
 
 @backward_graph(PermuteBackward)
-def _permute(tensor: tsr.Tensor, dims: Size, ctx: DotDict[str, list]) -> tsr.Tensor:
+def _permute(tensor: Tensor, dims: Size, ctx: DotDict[str, list]) -> Tensor:
     if tensor.ndim != len(dims):
         raise RuntimeError("Number of dimensions in the tensor input does not match "
                            "the length of the desired ordering of dimensions i.e. "
@@ -45,7 +46,7 @@ def _permute(tensor: tsr.Tensor, dims: Size, ctx: DotDict[str, list]) -> tsr.Ten
 
 
 @backward_graph(SqueezeBackward)
-def _squeeze(tensor: tsr.Tensor, dim: int | Size | None, ctx: DotDict[str, list]) -> tsr.Tensor:
+def _squeeze(tensor: Tensor, dim: int | Size | None, ctx: DotDict[str, list]) -> Tensor:
     if isinstance(dim, int):
         check_dim(dim, tensor.ndim)
         dim = (dim,) if tensor.shape[dim] == 1 else ()
@@ -62,7 +63,7 @@ def _squeeze(tensor: tsr.Tensor, dim: int | Size | None, ctx: DotDict[str, list]
 
 
 @backward_graph(UnsqueezeBackward)
-def _unsqueeze(tensor: tsr.Tensor, dim: int | Size, ctx: DotDict[str, list]) -> tsr.Tensor:
+def _unsqueeze(tensor: Tensor, dim: int | Size, ctx: DotDict[str, list]) -> Tensor:
     if isinstance(dim, int):
         dim = (dim,)
     else:
@@ -78,7 +79,7 @@ def _unsqueeze(tensor: tsr.Tensor, dim: int | Size, ctx: DotDict[str, list]) -> 
 
 
 @backward_graph(ExpandBackward)
-def _expand(tensor: tsr.Tensor, shape: Size, expanded_dims: Size, offset: int, ctx: DotDict[str, list]) -> tsr.Tensor:
+def _expand(tensor: Tensor, shape: Size, expanded_dims: Size, offset: int, ctx: DotDict[str, list]) -> Tensor:
     ctx.expanded_dims = tuple(expanded_dims)
     ctx.leading_dims = tuple(range(offset))
 
@@ -89,7 +90,7 @@ def _expand(tensor: tsr.Tensor, shape: Size, expanded_dims: Size, offset: int, c
 
 
 @view
-def broadcast_to(input: tsr.Tensor, shape: Size) -> tsr.Tensor:  # noqa: torch-like API
+def broadcast_to(input: Tensor, shape: Size) -> Tensor:  # noqa: torch-like API
     for dim in shape:
         if dim <= 0 and dim != -1:
             raise RuntimeError(f"The expanded size of the tensor ({dim}) isn't allowed.")
@@ -124,7 +125,7 @@ def broadcast_to(input: tsr.Tensor, shape: Size) -> tsr.Tensor:  # noqa: torch-l
         return _expand(input, new_shape, expanded_dims, offset)
 
 
-def broadcast_tensors(*tensors: tsr.Tensor) -> list[tsr.Tensor]:
+def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
     # numpy exceptions are absolutely fine
     result_shape = np.broadcast(*[t._data for t in tensors]).shape
     return [broadcast_to(t, result_shape) for t in tensors]

@@ -67,7 +67,7 @@ class Comparison:
         return (f'Exact: {self.exact} | '
                 f'approximate: {self.approximate} | '
                 f'maximum ratio: {self.max_ratio:.4f} | '
-                f'mean ratio: {np.mean(self.ratios):.4f}')
+                f'mean ratio: {(np.mean(self.ratios) if self.ratios else 0):.4f}')
 
 
 @pytest.fixture
@@ -77,10 +77,13 @@ def compare():
     print('\n', cmp, sep='', end='')
 
 
-def init_tensors(*shapes: kitty.Size, squeeze_dims: kitty.Size = None):
+def init_tensors(shapes: list[kitty.Size], dtypes: list[np.dtype] = None, squeeze_dims: kitty.Size = None):
+    if dtypes is None:
+        dtypes = [np.float32] * len(shapes)
+
     if squeeze_dims is None:
         squeeze_dims = tuple()
 
     np.random.seed(42)
-    data = [np.random.randn(*shape).astype(np.float32).squeeze(squeeze_dims) for shape in shapes]
+    data = [np.random.randn(*shape).astype(dtype).squeeze(squeeze_dims) for shape, dtype in zip(shapes, dtypes)]
     return map(lambda lib: map(lambda d: lib.tensor(d, requires_grad=True), data), (kitty, torch))

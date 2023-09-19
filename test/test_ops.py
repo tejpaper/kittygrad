@@ -1,18 +1,23 @@
+import itertools
+
 from conftest import *
 
 
 @pytest.mark.parametrize(
-    'shape_a,shape_b,squeeze_dims', [
-        ((2, 3), (2, 3), ()),
-        ((4, 1), (3,), ()),
-        ((13, 1, 3), (2, 3), ()),
-        ((1,), (1,), ()),
-        ((1,), (1,), (0,)),
-        ((5, 3, 4, 1), (3, 1, 1), ()),
-        ((5, 1, 4, 1), (8,), ()),
+    'dtypes',
+    itertools.product((np.float32, np.float64), (np.float32, np.float64)))
+@pytest.mark.parametrize(
+    'shapes,squeeze_dims', [
+        ([(2, 3), (2, 3)], ()),
+        ([(4, 1), (3,)], ()),
+        ([(13, 1, 3), (2, 3)], ()),
+        ([(1,), (1,)], ()),
+        ([(1,), (1,)], (0,)),
+        ([(5, 3, 4, 1), (3, 1, 1)], ()),
+        ([(5, 1, 4, 1), (8,)], ()),
     ])
-def test_ops(shape_a, shape_b, squeeze_dims, compare):
-    (kitty_a, kitty_b), (torch_a, torch_b) = init_tensors(shape_a, shape_b, squeeze_dims=squeeze_dims)
+def test_ops(shapes, dtypes, squeeze_dims, compare):
+    (kitty_a, kitty_b), (torch_a, torch_b) = init_tensors(shapes, dtypes, squeeze_dims=squeeze_dims)
 
     def zero_grad():
         for tensor in (kitty_a, kitty_b, torch_a, torch_b):
@@ -144,7 +149,6 @@ def test_ops(shape_a, shape_b, squeeze_dims, compare):
 
     # TODO: abs + raising to a negative power
     # TODO: std
-    # TODO: test autotype
 
 
 def test_ops_exceptions():
@@ -173,12 +177,17 @@ def test_ops_exceptions():
 
 
 @pytest.mark.parametrize(
-    'shape', [
-        (2, 3, 4, 5),
-        (2, 1, 8, 1),
+    'dtypes', [
+        [np.float32],
+        [np.float64],
     ])
-def test_agg(shape, compare):
-    kitty_a, torch_a = map(next, init_tensors(shape))
+@pytest.mark.parametrize(
+    'shapes', [
+        [(2, 3, 4, 5)],
+        [(2, 1, 8, 1)],
+    ])
+def test_agg(shapes, dtypes, compare):
+    kitty_a, torch_a = map(next, init_tensors(shapes, dtypes))
 
     def zero_grad():
         kitty_a.grad = None
@@ -237,12 +246,17 @@ def test_agg(shape, compare):
 
 
 @pytest.mark.parametrize(
-    'shape', [
-        (2, 3, 4, 5),
-        (2, 1, 8, 1),
+    'dtypes', [
+        [np.float32],
+        [np.float64],
     ])
-def test_agg_exceptions(shape):
-    kitty_a, _ = map(next, init_tensors(shape))
+@pytest.mark.parametrize(
+    'shapes', [
+        [(2, 3, 4, 5)],
+        [(2, 1, 8, 1)],
+    ])
+def test_agg_exceptions(shapes, dtypes):
+    kitty_a, _ = map(next, init_tensors(shapes))
 
     with pytest.raises(RuntimeError) as msg:
         kitty_a.sum((0, 0))
@@ -262,22 +276,26 @@ def test_agg_exceptions(shape):
 
 
 @pytest.mark.parametrize(
-    'shape_a,shape_b', [
-        ((4,), (4,)),  # dot
-        ((2, 3), (3, 4)),  # mm
-        ((5,), (5, 2)),  # mm, squeeze, unsqueeze
-        ((5, 2), (2,)),  # mv
-        ((4,), (2, 4, 2)),  # bmm, squeeze, unsqueeze, expand
-        ((2, 2, 4), (4,)),  # bmm, squeeze, unsqueeze, expand
-        ((3, 4), (2, 4, 2)),  # bmm, expand
-        ((2, 2, 4), (4, 3)),  # bmm, expand
-        ((5, 3, 4), (5, 4, 2)),  # bmm
+    'dtypes',
+    itertools.product((np.float32, np.float64), (np.float32, np.float64)))
+@pytest.mark.parametrize(
+    'shapes', [
+        [(4,), (4,)],  # dot
+        [(2, 3), (3, 4)],  # mm
+        [(5,), (5, 2)],  # mm, squeeze, unsqueeze
+        [(5, 2), (2,)],  # mv
+        [(4,), (2, 4, 2)],  # bmm, squeeze, unsqueeze, expand
+        [(2, 2, 4), (4,)],  # bmm, squeeze, unsqueeze, expand
+        [(3, 4), (2, 4, 2)],  # bmm, expand
+        [(2, 2, 4), (4, 3)],  # bmm, expand
+        [(5, 3, 4), (5, 4, 2)],  # bmm
     ])
-def test_matmul(shape_a, shape_b, compare):
-    (kitty_a, kitty_b), (torch_a, torch_b) = init_tensors(shape_a, shape_b)
+def test_matmul(shapes, dtypes, compare):
+    (kitty_a, kitty_b), (torch_a, torch_b) = init_tensors(shapes, dtypes)
 
     kitty_c = kitty_a @ kitty_b
-    torch_c = torch_a @ torch_b
+    result_type = torch.result_type(torch_a, torch_b)
+    torch_c = torch_a.type(result_type) @ torch_b.type(result_type)
     assert compare(kitty_c, torch_c)
 
     kitty_c.sum().backward()
@@ -288,89 +306,69 @@ def test_matmul(shape_a, shape_b, compare):
 
 def test_matmul_exceptions():
     # mm
-    (kitty_a, kitty_b), _ = init_tensors((2, 3), (3, 4))
-    with pytest.raises(TypeError) as msg:
-        kitty.mm(kitty_a.type(kitty.float16), kitty_b)
-    assert str(msg.value) == "Operands type mismatch: float16 != float32."
-
-    (kitty_a, kitty_b), _ = init_tensors((3,), (3, 4))
+    (kitty_a, kitty_b), _ = init_tensors([(3,), (3, 4)], [np.float64, np.float16])
     with pytest.raises(RuntimeError) as msg:
         kitty.mm(kitty_a, kitty_b)
     assert str(msg.value) == "2D tensors expected, but got 1D and 2D tensors."
 
-    (kitty_a, kitty_b), _ = init_tensors((2, 3), (3, 4, 1, 1))
+    (kitty_a, kitty_b), _ = init_tensors([(2, 3), (3, 4, 1, 1)], [np.float32, np.float16])
     with pytest.raises(RuntimeError) as msg:
         kitty.mm(kitty_a, kitty_b)
     assert str(msg.value) == "2D tensors expected, but got 2D and 4D tensors."
 
-    (kitty_a, kitty_b), _ = init_tensors((2, 3), (4, 3))
+    (kitty_a, kitty_b), _ = init_tensors([(2, 3), (4, 3)], [np.float64, np.float32])
     with pytest.raises(RuntimeError) as msg:
         kitty.mm(kitty_a, kitty_b)
     assert str(msg.value) == "input and mat2 shapes cannot be multiplied (2x3 and 4x3)."
 
     # dot
-    (kitty_a, kitty_b), _ = init_tensors((16,), (16,))
-    with pytest.raises(TypeError) as msg:
-        kitty.dot(kitty_a.type(kitty.float16), kitty_b)
-    assert str(msg.value) == "Operands type mismatch: float16 != float32."
-
-    (kitty_a, kitty_b), _ = init_tensors((16, 16), (16,))
+    (kitty_a, kitty_b), _ = init_tensors([(16, 16), (16,)], [np.float32, np.float64])
     with pytest.raises(RuntimeError) as msg:
         kitty.dot(kitty_a, kitty_b)
     assert str(msg.value) == "1D tensors expected, but got 2D and 1D tensors."
 
-    (kitty_a, kitty_b), _ = init_tensors((18,), (16,))
+    (kitty_a, kitty_b), _ = init_tensors([(18,), (16,)], [np.float16, np.float16])
     with pytest.raises(RuntimeError) as msg:
         kitty.dot(kitty_a, kitty_b)
     assert str(msg.value) == ("Inconsistent tensor size, expected tensor input and other to have "
                               "the same number of elements, but got 18 and 16 elements respectively.")
 
     # mv
-    (kitty_a, kitty_b), _ = init_tensors((3, 4), (4,))
-    with pytest.raises(TypeError) as msg:
-        kitty.mv(kitty_a, kitty_b.type(kitty.float64))
-    assert str(msg.value) == "Operands type mismatch: float32 != float64."
-
-    (kitty_a, kitty_b), _ = init_tensors((2, 3, 4), (4,))
+    (kitty_a, kitty_b), _ = init_tensors([(2, 3, 4), (4,)])
     with pytest.raises(RuntimeError) as msg:
         kitty.mv(kitty_a, kitty_b)
     assert str(msg.value) == "input must be a matrix, not a 3D tensor."
 
-    (kitty_a, kitty_b), _ = init_tensors((3, 4), (4, 1))
+    (kitty_a, kitty_b), _ = init_tensors([(3, 4), (4, 1)], [np.float64, np.float64])
     with pytest.raises(RuntimeError) as msg:
         kitty.mv(kitty_a, kitty_b)
     assert str(msg.value) == "vec must be a vector, not a 2D tensor."
 
-    (kitty_a, kitty_b), _ = init_tensors((3, 4), (5,))
+    (kitty_a, kitty_b), _ = init_tensors([(3, 4), (5,)], [np.float16, np.float32])
     with pytest.raises(RuntimeError) as msg:
         kitty.mv(kitty_a, kitty_b)
     assert str(msg.value) == "input and vec shapes cannot be multiplied (3x4 and 5)."
 
     # bmm
-    (kitty_a, kitty_b), _ = init_tensors((2, 3, 4), (2, 4, 2))
-    with pytest.raises(TypeError) as msg:
-        kitty.bmm(kitty_a, kitty_b.type(kitty.float64))
-    assert str(msg.value) == "Operands type mismatch: float32 != float64."
-
-    (kitty_a, kitty_b), _ = init_tensors((2, 3, 4), (1, 2, 4, 2))
+    (kitty_a, kitty_b), _ = init_tensors([(2, 3, 4), (1, 2, 4, 2)], [np.float16, np.float64])
     with pytest.raises(RuntimeError) as msg:
         kitty.bmm(kitty_a, kitty_b)
     assert str(msg.value) == ("Batch dimensions of both tensors must be equal, but got "
                               "(2,) and (1, 2) respectively.")
 
-    (kitty_a, kitty_b), _ = init_tensors((2, 3, 4), (4, 2))
+    (kitty_a, kitty_b), _ = init_tensors([(2, 3, 4), (4, 2)], [np.float32, np.float16])
     with pytest.raises(RuntimeError) as msg:
         kitty.bmm(kitty_a, kitty_b)
     assert str(msg.value) == ("Batch dimensions of both tensors must be equal, but got "
                               "(2,) and () respectively.")
 
-    (kitty_a, kitty_b), _ = init_tensors((4,), (4, 2))
+    (kitty_a, kitty_b), _ = init_tensors([(4,), (4, 2)], [np.float32, np.float64])
     with pytest.raises(RuntimeError) as msg:
         kitty.bmm(kitty_a, kitty_b)
     assert str(msg.value) == ("The batch matrix-matrix product requires the "
                               "tensors to have at least 3 dimensions each.")
 
-    (kitty_a, kitty_b), _ = init_tensors((13, 2, 3, 5), (13, 2, 4, 2))
+    (kitty_a, kitty_b), _ = init_tensors([(13, 2, 3, 5), (13, 2, 4, 2)])
     with pytest.raises(RuntimeError) as msg:
         kitty.bmm(kitty_a, kitty_b)
     assert str(msg.value) == "input and mat2 matrix shapes cannot be multiplied (3x5 and 4x2)."
@@ -382,18 +380,41 @@ def test_matmul_exceptions():
 
 
 @pytest.mark.parametrize(
-    'shape_a,shape_b,squeeze_dims', [
-        ((2, 3), (2, 3), ()),
-        ((1,), (1,), ()),
-        ((1,), (1,), (0,)),
-        ((5, 3, 4, 1), (3, 1, 1), ()),
+    'dtypes', [
+        # [np.float32, np.float32],
+        [np.float64, np.float32],
+        [np.float64, np.float64],
     ])
-def test_inplace(shape_a, shape_b, squeeze_dims, compare):
-    (kitty_a, kitty_b), (torch_a, torch_b) = init_tensors(shape_a, shape_b, squeeze_dims=squeeze_dims)
+@pytest.mark.parametrize(
+    'shapes,squeeze_dims', [
+        ([(2, 3), (2, 3)], ()),
+        ([(1,), (1,)], ()),
+        ([(1,), (1,)], (0,)),
+        ([(5, 3, 4, 1), (3, 1, 1)], ()),
+    ])
+def test_inplace(shapes, dtypes, squeeze_dims, compare):
+    (kitty_a, kitty_b), (torch_a, torch_b) = init_tensors(shapes, dtypes, squeeze_dims=squeeze_dims)
 
     def zero_grad():
         for tensor in (kitty_a, kitty_b, torch_a, torch_b):
             tensor.grad = None
+
+    def test():
+        assert compare(kitty_c, torch_c)
+        assert compare(kitty_d, torch_d)
+
+        kitty_c.retain_grad()
+        torch_c.retain_grad()
+
+        with pytest.warns(UserWarning, match="An attempt to assign a gradient to a tensor with retains_grad=True"):
+            kitty_d.sum().backward()
+        torch_d.sum().backward()
+
+        assert compare(kitty_a.grad, torch_a.grad)
+        assert compare(kitty_b.grad, torch_b.grad)
+        assert compare(kitty_c.grad, torch_c.grad)
+
+        zero_grad()
 
     # __iadd__
     kitty_c = kitty_a + 0
@@ -404,42 +425,18 @@ def test_inplace(shape_a, shape_b, squeeze_dims, compare):
     torch_c += torch_b
     torch_d = torch_c * torch_b
 
-    assert compare(kitty_c, torch_c)
-    assert compare(kitty_d, torch_d)
-
-    kitty_c.retain_grad()
-    kitty_d.sum().backward()
-    torch_c.retain_grad()
-    torch_d.sum().backward()
-
-    assert compare(kitty_a.grad, torch_a.grad)
-    assert compare(kitty_b.grad, torch_b.grad)
-    assert compare(kitty_c.grad, torch_c.grad)
-
-    zero_grad()
+    test()
 
     # __isub__
-    kitty_c = kitty_a.type(kitty.float64)
+    kitty_c = kitty_a + 0
     kitty_c -= kitty_b
     kitty_d = kitty_c * kitty_b
 
-    torch_c = torch_a.type(torch.float64)
+    torch_c = torch_a + 0
     torch_c -= torch_b
     torch_d = torch_c * torch_b
 
-    assert compare(kitty_c, torch_c)
-    assert compare(kitty_d, torch_d)
-
-    kitty_c.retain_grad()
-    kitty_d.sum().backward()
-    torch_c.retain_grad()
-    torch_d.sum().backward()
-
-    assert compare(kitty_a.grad, torch_a.grad)
-    assert compare(kitty_b.grad, torch_b.grad)
-    assert compare(kitty_c.grad, torch_c.grad)
-
-    zero_grad()
+    test()
 
     # __imul__
     kitty_c = kitty_a + 0
@@ -451,39 +448,7 @@ def test_inplace(shape_a, shape_b, squeeze_dims, compare):
     torch_d = 1 / torch_c
 
     assert compare(kitty_a, torch_a)
-    assert compare(kitty_c, torch_c)
-    assert compare(kitty_d, torch_d)
-
-    kitty_c.retain_grad()
-    kitty_d.sum().backward()
-    torch_c.retain_grad()
-    torch_d.sum().backward()
-
-    assert compare(kitty_a.grad, torch_a.grad)
-    assert compare(kitty_b.grad, torch_b.grad)
-    assert compare(kitty_c.grad, torch_c.grad)
-
-    zero_grad()
-
-    # __itruediv__, detach
-
-    kitty_c = kitty_a.detach()
-    kitty_c /= kitty_b
-    kitty_d = kitty_c + kitty_b
-
-    torch_c = torch_a.detach().clone()
-    torch_c /= torch_b
-    torch_d = torch_c + torch_b
-
-    assert compare(kitty_c, torch_c)
-    assert compare(kitty_d, torch_d)
-
-    kitty_d.sum().backward()
-    torch_d.sum().backward()
-
-    assert compare(kitty_b.grad, torch_b.grad)
-
-    zero_grad()
+    test()
 
     # __ipow__
     kitty_c = kitty_a + 0
@@ -498,17 +463,24 @@ def test_inplace(shape_a, shape_b, squeeze_dims, compare):
     torch_c **= torch_b
     torch_d = torch_c * torch_b
 
+    test()
+
+    # __itruediv__, detach
+    kitty_c = kitty_a.detach()
+    kitty_c /= kitty_b
+    kitty_d = kitty_c - kitty_b  # there is a pytest bug when using plus
+
+    torch_c = torch_a.detach().clone()
+    torch_c /= torch_b
+    torch_d = torch_c - torch_b
+
     assert compare(kitty_c, torch_c)
     assert compare(kitty_d, torch_d)
 
-    kitty_c.retain_grad()
     kitty_d.sum().backward()
-    torch_c.retain_grad()
     torch_d.sum().backward()
 
-    assert compare(kitty_a.grad, torch_a.grad)
     assert compare(kitty_b.grad, torch_b.grad)
-    assert compare(kitty_c.grad, torch_c.grad)
 
 
 def test_inplace_exceptions(compare):

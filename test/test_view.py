@@ -1,13 +1,21 @@
+import itertools
+
 from conftest import *
+from kittygrad.utils import ALL_DTYPES
 
 
 @pytest.mark.parametrize(
-    'shape', [
-        (4, 1, 3, 2, 1, 5),
-        (1, 2, 3, 4, 1, 6),
+    'dtypes', [
+        [np.float32],
+        [np.float64],
     ])
-def test_view(shape, compare):
-    kitty_a, torch_a = map(next, init_tensors(shape))
+@pytest.mark.parametrize(
+    'shapes', [
+        [(4, 1, 3, 2, 1, 5)],
+        [(1, 2, 3, 4, 1, 6)],
+    ])
+def test_view(shapes, dtypes, compare):
+    kitty_a, torch_a = map(next, init_tensors(shapes, dtypes))
 
     def zero_grad():
         kitty_a.grad = None
@@ -99,7 +107,7 @@ def test_view_exceptions():
         kitty_a.transpose(0, 0)
     assert str(msg.value) == "Scalar cannot be transposed."
 
-    kitty_a, _ = map(next, init_tensors((2, 1, 3)))
+    kitty_a, _ = map(next, init_tensors([(2, 1, 3)]))
     with pytest.raises(IndexError) as msg:
         kitty_a.transpose(3, 0)
     assert str(msg.value) == "Dimension out of range (expected to be in range of [-3, 2], but got 3)."
@@ -118,7 +126,7 @@ def test_view_exceptions():
     assert str(msg.value) == "tensor.mT is only supported on matrices or batches of matrices. Got 1D tensor."
 
     # permute
-    kitty_a, _ = map(next, init_tensors((2, 4, 1, 3)))
+    kitty_a, _ = map(next, init_tensors([(2, 4, 1, 3)], [np.float16]))
     with pytest.raises(RuntimeError) as msg:
         kitty_a.permute((0, 1, 2, 3, 4))
     assert str(msg.value) == ("Number of dimensions in the tensor input does not match "
@@ -164,11 +172,14 @@ def test_view_exceptions():
 
 
 @pytest.mark.parametrize(
-    'shape_a,shape_b,shape_c', [
-        ((10, 1, 2), (3, 1), (2, 1, 1, 1)),
+    'dtypes',
+    itertools.product(ALL_DTYPES, ALL_DTYPES, ALL_DTYPES))
+@pytest.mark.parametrize(
+    'shapes', [
+        [(10, 1, 2), (3, 1), (2, 1, 1, 1)],
     ])
-def test_broadcast_tensors(shape_a, shape_b, shape_c, compare):
-    init_kitty, init_torch = init_tensors(shape_a, shape_b, shape_c)
+def test_broadcast_tensors(shapes, dtypes, compare):
+    init_kitty, init_torch = init_tensors(shapes, dtypes)
     kitty_a, kitty_b, kitty_c = init_kitty
     torch_a, torch_b, torch_c = init_torch
 

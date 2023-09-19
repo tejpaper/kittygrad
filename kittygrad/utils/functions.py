@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from .constants import *
-import kittygrad.tensor as tsr
 
 manual_seed = np.random.seed
 
@@ -20,12 +19,6 @@ def inv_permutation(permutation: Size) -> Size:
     inv = np.empty_like(permutation)
     inv[permutation] = np.arange(len(inv), dtype=inv.dtype)
     return inv.tolist()
-
-
-def check_types(tensor: tsr.Tensor, other: tsr.Tensor) -> None:
-    if tensor.dtype != other.dtype:
-        raise TypeError("Operands type mismatch: {} != {}."
-                        .format(tensor.dtype, other.dtype))
 
 
 def check_dim(dim: int, ndim: int) -> None:

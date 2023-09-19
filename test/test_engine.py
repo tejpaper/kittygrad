@@ -1,13 +1,22 @@
+import itertools
+
 from conftest import *
 
 
 @pytest.mark.parametrize(
-    'shape_a,shape_b,shape_c,shape_d,squeeze_dims', [
-        ((1,), (1,), (1,), (1,), ()),
-        ((1,), (1,), (1,), (1,), (0,)),
+    'dtypes', itertools.product(
+        (np.float32, np.float64),
+        (np.float32, np.float64),
+        (np.float32, np.float64),
+        (np.float32, np.float64),
+    ))
+@pytest.mark.parametrize(
+    'shapes,squeeze_dims', [
+        ([(1,), (1,), (1,), (1,)], ()),
+        ([(1,), (1,), (1,), (1,)], (0,)),
     ])
-def test_engine(shape_a, shape_b, shape_c, shape_d, squeeze_dims, compare):
-    init_kitty, init_torch = init_tensors(shape_a, shape_b, shape_c, shape_d, squeeze_dims=squeeze_dims)
+def test_engine(shapes, dtypes, squeeze_dims, compare):
+    init_kitty, init_torch = init_tensors(shapes, dtypes, squeeze_dims=squeeze_dims)
     kitty_a, kitty_b, kitty_c, kitty_d = init_kitty
     torch_a, torch_b, torch_c, torch_d = init_torch
 
@@ -197,13 +206,18 @@ def test_entry_point(compare):
 
 
 @pytest.mark.parametrize(
-    'shape,squeeze_dims', [
-        ((1, 3, 4), ()),
-        ((1,), ()),
-        ((1,), (0,)),
+    'dtypes', [
+        [np.float32],
+        [np.float64],
     ])
-def test_version_control(shape, squeeze_dims, compare):
-    kitty_a, torch_a = map(next, init_tensors(shape, squeeze_dims=squeeze_dims))
+@pytest.mark.parametrize(
+    'shapes,squeeze_dims', [
+        ([(1, 3, 4)], ()),
+        ([(1,)], ()),
+        ([(1,)], (0,)),
+    ])
+def test_version_control(shapes, dtypes, squeeze_dims, compare):
+    kitty_a, torch_a = map(next, init_tensors(shapes, dtypes, squeeze_dims=squeeze_dims))
 
     # warning about possible problems with .retain_grad()
     kitty_b = kitty_a * 2
