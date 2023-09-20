@@ -67,6 +67,7 @@ class Tensor:
             separator=REPR_SEPARATOR,
             prefix=REPR_PREFIX,
             suffix=suffix,
+            floatmode=REPR_FLOATMODE,
         ) + suffix
 
     def __str__(self) -> str:
@@ -170,6 +171,12 @@ class Tensor:
     def __neg__(self) -> Tensor:
         return func._neg(self)
 
+    def __abs__(self) -> Tensor:
+        return func._abs(self)
+
+    def abs(self) -> Tensor:
+        return func._abs(self)
+
     def exp(self) -> Tensor:
         return func._exp(self)
 
@@ -231,7 +238,11 @@ class Tensor:
     def mean(self, dim: int | Size | None = None, keepdim: bool = False) -> Tensor:
         return func._mean(self, dim, keepdim)
 
-    # TODO: std, abs
+    def var(self, dim: int | Size | None = None, correction: int = 1, keepdim: bool = False) -> Tensor:
+        return func._var(self, dim, correction, keepdim)
+
+    def std(self, dim: int | Size | None = None, correction: int = 1, keepdim: bool = False) -> Tensor:
+        return func._std(self, dim, correction, keepdim)
 
     @autocast(op_symbol='@', broadcasting=False, prohibited_types=[Scalar])
     def __matmul__(self, other: np.ndarray | Tensor) -> Tensor:

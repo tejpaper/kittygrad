@@ -6,6 +6,7 @@ from .activation import (
 from .ops import (
     _type,
     _neg,
+    _abs,
     _exp,
     _log,
     _add,
@@ -20,6 +21,8 @@ from .ops import (
     _ipow,
     _sum,
     _mean,
+    _var,
+    _std,
     dot,
     mm,
     mv,

@@ -147,8 +147,19 @@ def test_ops(shapes, dtypes, squeeze_dims, compare):
                                 (torch_a, torch_b, torch_c, torch_d, torch_e)):
         assert compare(kitty_t.grad, torch_t.grad)
 
-    # TODO: abs + raising to a negative power
-    # TODO: std
+    zero_grad()
+
+    # __abs__, __pow__, sum
+    kitty_c = abs(kitty_a)
+    kitty_d = kitty_c ** -0.5
+    kitty_d.sum().backward()
+
+    torch_c = abs(torch_a)
+    torch_d = torch_c ** -0.5
+    torch_d.sum().backward()
+
+    assert compare(kitty_d, torch_d)
+    assert compare(kitty_a.grad, torch_a.grad)
 
 
 def test_ops_exceptions():
@@ -204,9 +215,9 @@ def test_agg(shapes, dtypes, compare):
 
     zero_grad()
 
-    # mean : dim=list, keepdim=False   # TODO: replace with std
-    kitty_b = kitty_a.mean(dim=[-1, 0], keepdim=False)
-    torch_b = torch_a.mean(dim=[-1, 0], keepdim=False)
+    # var : dim=list, keepdim=False
+    kitty_b = kitty_a.var(dim=[-1, 0], correction=0, keepdim=False)
+    torch_b = torch_a.var(dim=[-1, 0], correction=0, keepdim=False)
     assert compare(kitty_b, torch_b)
 
     kitty_b.backward(kitty.ones_like(kitty_b))
@@ -235,9 +246,9 @@ def test_agg(shapes, dtypes, compare):
     torch_b.backward(torch.ones_like(torch_b))
     assert compare(kitty_a.grad, torch_a.grad)
 
-    # sum : dim=int
-    kitty_b = kitty_a.sum(dim=-1)
-    torch_b = torch_a.sum(dim=-1)
+    # std : dim=int
+    kitty_b = kitty_a.std(dim=-2)
+    torch_b = torch_a.std(dim=-2)
     assert compare(kitty_b, torch_b)
 
     kitty_b.backward(kitty.ones_like(kitty_b))
@@ -267,7 +278,7 @@ def test_agg_exceptions(shapes, dtypes):
     assert str(msg.value) == "Duplicate dims are not allowed."
 
     with pytest.raises(IndexError) as msg:
-        kitty_a.sum((42, 0))  # TODO: replace with std
+        kitty_a.std((42, 0))
     assert str(msg.value) == "Dimension out of range (expected to be in range of [-4, 3], but got 42)."
 
     with pytest.raises(IndexError) as msg:

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import numpy as np
-
 import kittygrad.tensor as tsr
 from ..autograd.engine import backward_graph
 from ..autograd.ops import (
     ToCopyBackward,
     NegBackward,
+    AbsBackward,
     ExpBackward,
     LogBackward,
     AddBackward,
@@ -19,6 +18,8 @@ from ..autograd.ops import (
     IPowBackward,
     SumBackward,
     MeanBackward,
+    VarBackward,
+    StdBackward,
     MmBackward,
     DotBackward,
     MvBackward,
@@ -42,6 +43,16 @@ def _type(tensor: Tensor, dtype: type | np.dtype, ctx: DotDict[str, list]) -> Te
 def _neg(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=-tensor._data,
+        dtype=tensor.dtype,
+        requires_grad=tensor.requires_grad,
+    )
+
+
+@backward_graph(AbsBackward)
+def _abs(tensor: Tensor, ctx: DotDict[str, list]) -> Tensor:
+    ctx.saved_tensors.append(tensor)
+    return tsr.tensor(
+        data=np.abs(tensor._data, **NP_OPS_CONFIG),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
@@ -180,16 +191,11 @@ def _ipow(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
 
 @backward_graph(SumBackward)
 def _sum(tensor: Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str, list]) -> Tensor:
-    if isinstance(dim, int):
-        dim = (dim,)
-    elif dim is not None:
-        dim = tuple(dim)
-
+    dim = dim2tuple(dim, tensor.ndim)
     check_dims(dim, tensor.ndim)
 
     ctx.shape = tensor.shape
     ctx.dim = dim
-    ctx.keepdim = keepdim
     return tsr.tensor(
         data=np.sum(tensor._data, axis=dim, keepdims=keepdim),
         dtype=tensor.dtype,
@@ -199,21 +205,53 @@ def _sum(tensor: Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str
 
 @backward_graph(MeanBackward)
 def _mean(tensor: Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str, list]) -> Tensor:
-    if isinstance(dim, int):
-        dim = (dim,)
-    elif dim is not None:
-        dim = tuple(dim)
-
+    dim = dim2tuple(dim, tensor.ndim)
     check_dims(dim, tensor.ndim)
 
     ctx.shape = tensor.shape
     ctx.dim = dim
-    ctx.keepdim = keepdim
     return tsr.tensor(
         data=np.mean(tensor._data, axis=dim, keepdims=keepdim),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
+
+
+@backward_graph(VarBackward)
+def _var(tensor: Tensor, dim: int | Size | None, correction: int, keepdim: bool, ctx: DotDict[str, list]) -> Tensor:
+    dim = dim2tuple(dim, tensor.ndim)
+    check_dims(dim, tensor.ndim)
+
+    if not tensor.requires_grad:
+        return tsr.tensor(
+            data=np.var(tensor._data, axis=dim, ddof=correction, keepdims=keepdim),
+            dtype=tensor.dtype,
+            requires_grad=tensor.requires_grad,
+        )
+
+    residuals = tensor._data - np.mean(tensor._data, axis=dim, keepdims=True)
+    expanded_shape, reps = separate_dims(tensor.shape, dim)
+    n = np.prod(reps, dtype=tensor.dtype)
+
+    ctx.dim = dim
+    ctx.correction = correction
+    ctx.residuals = residuals
+    ctx.expanded_shape = expanded_shape
+    ctx.reps = reps
+    ctx.n = n
+
+    return tsr.tensor(
+        data=np.sum(residuals ** 2, axis=dim, keepdims=keepdim) / (n - correction),
+        dtype=tensor.dtype,
+        requires_grad=tensor.requires_grad,
+    )
+
+
+@backward_graph(StdBackward)
+def _std(*args, **kwargs) -> Tensor:
+    out = _var.__wrapped__(*args, **kwargs)
+    np.sqrt(out._data, out=out._data)
+    return out
 
 
 @backward_graph(MmBackward)

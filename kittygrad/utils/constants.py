@@ -15,6 +15,7 @@ DEFAULT_DTYPE = float32
 REPR_PRECISION = 4
 REPR_SEPARATOR = ', '
 REPR_PREFIX = 'tensor('
+REPR_FLOATMODE = 'maxprec_equal'
 
 # numpy operations config
 NP_OPS_CONFIG = dict(casting='no')

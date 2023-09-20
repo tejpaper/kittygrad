@@ -12,6 +12,12 @@ class NegBackward(FnBackward):
         self._next_functions[0].propagate(-self._grad)
 
 
+class AbsBackward(FnBackward):
+    def _propagate(self) -> None:
+        self._grad *= np.sign(self._ctx.saved_tensors[0]._data)
+        self._next_functions[0].propagate(self._grad)
+
+
 class ExpBackward(FnBackward):
     def _propagate(self) -> None:
         self._inplace_modification_check()
@@ -127,31 +133,37 @@ class IPowBackward(FnBackward):
 
 
 class SumBackward(FnBackward):
-    def _separate_dims(self) -> tuple[Size, Size]:
-        if self._ctx.dim is None:
-            dims2repeat = range(len(self._ctx.shape))
-        else:
-            dims2repeat = self._ctx.dim
-
-        expanded_shape = list(self._ctx.shape)
-        reps = [1] * len(self._ctx.shape)
-
-        for dim in dims2repeat:
-            expanded_shape[dim] = 1
-            reps[dim] = self._ctx.shape[dim]
-
-        return expanded_shape, reps
-
     def _propagate(self) -> None:
-        expanded_shape, reps = self._separate_dims()
+        expanded_shape, reps = separate_dims(self._ctx.shape, self._ctx.dim)
         self._next_functions[0].propagate(np.tile(self._grad.reshape(expanded_shape), reps))
 
 
-class MeanBackward(SumBackward):
+class MeanBackward(FnBackward):
     def _propagate(self) -> None:
-        expanded_shape, reps = super()._separate_dims()
+        expanded_shape, reps = separate_dims(self._ctx.shape, self._ctx.dim)
         self._next_functions[0].propagate(
             np.tile(self._grad.reshape(expanded_shape), reps) / np.prod(reps, dtype=self._grad.dtype))
+
+
+class VarBackward(FnBackward):
+    def _var_std_propagate(self) -> None:
+        self._grad = np.tile(self._grad.reshape(self._ctx.expanded_shape), self._ctx.reps)
+        self._grad *= self._ctx.residuals
+        self._grad += np.sum(self._grad, axis=self._ctx.dim, keepdims=True) / self._ctx.n
+        self._next_functions[0].propagate(self._grad)
+
+    def _propagate(self) -> None:
+        self._grad *= 2 / (self._ctx.n - self._ctx.correction)
+        self._var_std_propagate()
+
+
+class StdBackward(VarBackward):
+    def _propagate(self) -> None:
+        self._inplace_modification_check()
+
+        self._grad /= (self._ctx.n - self._ctx.correction)
+        self._grad /= self._ctx.out._data
+        super()._var_std_propagate()
 
 
 class MmBackward(FnBackward):

@@ -36,6 +36,3 @@ def _relu(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
-
-
-# TODO: SiLU, LeakyReLU

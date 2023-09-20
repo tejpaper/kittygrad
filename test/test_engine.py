@@ -156,8 +156,6 @@ def test_engine(shapes, dtypes, squeeze_dims, compare):
     assert compare(kitty_a.grad, torch_a.grad)
     assert compare(kitty_b.grad, torch_b.grad)
 
-    zero_grad()  # do nothing :)
-
 
 def test_entry_point(compare):
     kitty_a = kitty.tensor([2.], requires_grad=True)
@@ -285,5 +283,3 @@ def test_version_control(shapes, dtypes, compare):
 
         assert kitty_b.version == i + 1
         assert kitty_b._data.base is kitty_a._data
-
-    kitty_a.requires_grad = True

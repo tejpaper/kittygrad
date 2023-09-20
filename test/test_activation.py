@@ -49,7 +49,3 @@ def test_activation(shapes, dtypes, squeeze_dims, compare):
     kitty_b.backward(kitty.ones_like(kitty_b))
     torch_b.backward(torch.ones_like(torch_b))
     assert compare(kitty_a.grad, torch_a.grad)
-
-    zero_grad()
-
-    # TODO: LeakyReLU, SiLU
