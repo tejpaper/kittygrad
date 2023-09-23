@@ -7,6 +7,11 @@ class ToCopyBackward(FnBackward):
         self._next_functions[0].propagate(self._grad.astype(self._ctx.prev_dtype))
 
 
+class CloneBackward(FnBackward):
+    def _propagate(self) -> None:
+        self._next_functions[0].propagate(self._grad)
+
+
 class NegBackward(FnBackward):
     def _propagate(self) -> None:
         self._next_functions[0].propagate(-self._grad)

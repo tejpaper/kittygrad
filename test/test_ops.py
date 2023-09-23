@@ -18,6 +18,8 @@ from conftest import *
     ])
 def test_ops(shapes, dtypes, squeeze_dims, compare):
     (kitty_a, kitty_b), (torch_a, torch_b) = init_tensors(shapes, dtypes, squeeze_dims=squeeze_dims)
+    numpy_a = kitty_a._data
+    numpy_b = kitty_b._data
 
     def zero_grad():
         for tensor in (kitty_a, kitty_b, torch_a, torch_b):
@@ -95,11 +97,11 @@ def test_ops(shapes, dtypes, squeeze_dims, compare):
     zero_grad()
 
     # __truediv__, __rtruediv__, __add__, sum
-    kitty_c = kitty_a / 10
+    kitty_c = kitty_a / numpy_b
     kitty_d = 1 / kitty_b
     kitty_e = kitty_c + kitty_d
 
-    torch_c = torch_a / 10
+    torch_c = torch_a / torch_b.detach()
     torch_d = 1 / torch_b
     torch_e = torch_c + torch_d
 
@@ -127,12 +129,12 @@ def test_ops(shapes, dtypes, squeeze_dims, compare):
     zero_grad()
 
     # __add__, __mul__, sum, retain_grad
-    kitty_c = kitty_a + kitty_b
-    kitty_d = kitty_a * kitty_b
+    kitty_c = kitty_a + numpy_b
+    kitty_d = numpy_a * kitty_b
     kitty_e = kitty_c * kitty_d
 
-    torch_c = torch_a + torch_b
-    torch_d = torch_a * torch_b
+    torch_c = torch_a + torch_b.detach()
+    torch_d = torch_a.detach() * torch_b
     torch_e = torch_c * torch_d
 
     for kitty_t, torch_t in zip((kitty_c, kitty_d, kitty_e), (torch_c, torch_d, torch_e)):
@@ -177,9 +179,6 @@ def test_ops_exceptions():
         kitty_a + None
     assert str(msg.value) == "Unsupported operand type(s) for +: 'Tensor' and 'NoneType'."
 
-    with pytest.raises(NotImplementedError) as msg:
-        np.array(2, dtype=np.int8) + kitty_a
-    assert str(msg.value) == "Unsupported operation with NumPy array. Try swapping operands."
     kitty_a + np.array(2, dtype=np.int8)  # it's ok, auto cast
 
     with pytest.raises(TypeError) as msg:
@@ -318,6 +317,10 @@ def test_matmul(shapes, dtypes, compare):
 def test_matmul_exceptions():
     # mm
     (kitty_a, kitty_b), _ = init_tensors([(3,), (3, 4)], [np.float64, np.float16])
+    with pytest.raises(TypeError) as msg:
+        kitty.mm(kitty_a, 1)
+    assert str(msg.value) == "Unsupported argument type(s) for mm: 'Tensor' and 'int'."
+
     with pytest.raises(RuntimeError) as msg:
         kitty.mm(kitty_a, kitty_b)
     assert str(msg.value) == "2D tensors expected, but got 1D and 2D tensors."
@@ -389,6 +392,10 @@ def test_matmul_exceptions():
         kitty.matmul(kitty.tensor(1), kitty.tensor([2, 3]))
     assert str(msg.value) == "Input tensors must not be scalars."
 
+    with pytest.raises(TypeError) as msg:
+        kitty.matmul(kitty.tensor(1), 1.5)
+    assert str(msg.value) == "Unsupported argument type(s) for matmul: 'Tensor' and 'float'."
+
 
 @pytest.mark.parametrize(
     'dtypes', [
@@ -429,11 +436,11 @@ def test_inplace(shapes, dtypes, squeeze_dims, compare):
 
     # __iadd__
     kitty_c = kitty_a + 0
-    kitty_c += kitty_b
+    kitty_c += kitty_c
     kitty_d = kitty_c * kitty_b
 
     torch_c = torch_a + 0
-    torch_c += torch_b
+    torch_c += torch_c
     torch_d = torch_c * torch_b
 
     test()
@@ -465,13 +472,13 @@ def test_inplace(shapes, dtypes, squeeze_dims, compare):
     kitty_c = kitty_a + 0
     kitty_c **= 2
     kitty_c **= 0.5
-    kitty_c **= kitty_b
+    kitty_c **= -kitty_c
     kitty_d = kitty_c * kitty_b
 
     torch_c = torch_a + 0
     torch_c **= 2
     torch_c **= 0.5
-    torch_c **= torch_b
+    torch_c = torch_c ** -torch_c
     torch_d = torch_c * torch_b
 
     test()
@@ -493,6 +500,31 @@ def test_inplace(shapes, dtypes, squeeze_dims, compare):
 
     assert compare(kitty_b.grad, torch_b.grad)
 
+    zero_grad()
+
+    # clone, __iadd__, __imul__
+    kitty_c = kitty_a + 0
+    kitty_d = kitty_c.clone()
+    kitty_c += kitty_b
+    kitty_d *= kitty_b
+    kitty_e = kitty_c + kitty_d
+
+    torch_c = torch_a + 0
+    torch_d = torch_c.clone()
+    torch_c += torch_b
+    torch_d *= torch_b
+    torch_e = torch_c + torch_d
+
+    assert compare(kitty_c, torch_c)
+    assert compare(kitty_d, torch_d)
+    assert compare(kitty_e, torch_e)
+
+    kitty_e.sum().backward()
+    torch_e.sum().backward()
+
+    assert compare(kitty_a.grad, torch_a.grad)
+    assert compare(kitty_b.grad, torch_b.grad)
+
 
 def test_inplace_exceptions(compare):
     kitty_a = kitty.tensor([[1]])
@@ -505,10 +537,16 @@ def test_inplace_exceptions(compare):
         kitty_a **= 'string'
     assert str(msg.value) == "Unsupported operand type(s) for **=: 'Tensor' and 'str'."
 
+    kitty_a[0, 0] += 1
+
     kitty_a.requires_grad = True
 
     with pytest.raises(RuntimeError) as msg:
         kitty_a /= 2
+    assert str(msg.value) == "A leaf Variable that requires grad is being used in an in-place operation."
+
+    with pytest.raises(RuntimeError) as msg:
+        kitty_a[0] += 1
     assert str(msg.value) == "A leaf Variable that requires grad is being used in an in-place operation."
 
     kitty_b = kitty_a.expand(2, 3)

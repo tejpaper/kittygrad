@@ -4,6 +4,7 @@ import kittygrad.tensor as tsr
 from ..autograd.engine import backward_graph
 from ..autograd.ops import (
     ToCopyBackward,
+    CloneBackward,
     NegBackward,
     AbsBackward,
     ExpBackward,
@@ -35,6 +36,15 @@ def _type(tensor: Tensor, dtype: type | np.dtype, ctx: DotDict[str, list]) -> Te
     return tsr.tensor(
         data=tensor._data,
         dtype=dtype,
+        requires_grad=tensor.requires_grad,
+    )
+
+
+@backward_graph(CloneBackward)
+def _clone(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
+    return tsr.tensor(
+        data=tensor._data.copy(),
+        dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
 
@@ -262,7 +272,7 @@ def _mm(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@autocast(broadcasting=False, prohibited_types=[Scalar])  # TODO: test autocast of these functions
+@autocast(broadcasting=False, prohibited_types=[Scalar])
 def mm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like API
     if input.ndim != 2 or mat2.ndim != 2:
         raise RuntimeError(f"2D tensors expected, but got {input.ndim}D and {mat2.ndim}D tensors.")

@@ -241,7 +241,7 @@ def test_broadcast_tensors(shapes, dtypes, compare):
         np.s_[[0, 0], [1, 1], [2, 2]],
     ]
 )
-def test_indexing(key, shapes, dtypes, compare):
+def test_indexing_1(key, shapes, dtypes, compare):
     kitty_a, torch_a = map(next, init_tensors(shapes, dtypes))
 
     def zero_grad():
@@ -270,7 +270,7 @@ def test_indexing(key, shapes, dtypes, compare):
     test()
 
 
-def test_indexing_exceptions(compare):
+def test_indexing_2(compare):
     kitty_a, torch_a = map(next, init_tensors([(4, 5, 6)]))
 
     def zero_grad():
@@ -293,7 +293,50 @@ def test_indexing_exceptions(compare):
 
     # boolean indexing
     kitty_b = kitty_a + 0
-    kitty_b[kitty_a._data > 0] = 100  # TODO: boolean operations
+    kitty_b[kitty_a > 0] = 100
     torch_b = torch_a + 0
     torch_b[torch_b > 0] = 100
     test()
+
+
+def test_setitem(compare):
+    kitty_a, torch_a = map(next, init_tensors([(4, 5, 6)]))
+
+    def zero_grad():
+        kitty_a.grad = None
+        torch_a.grad = None
+
+    def test():
+        assert compare(kitty_b, torch_b)
+
+        kitty_b.sum().backward()
+        torch_b.sum().backward()
+        assert compare(kitty_a.grad, torch_a.grad)
+
+        zero_grad()
+
+    # gradient flow through the basic indexing operation
+    kitty_b = kitty_a + 0
+    kitty_b[:, :2, 3] *= kitty_a[:, :2, 3]
+    torch_b = torch_a + 0
+    torch_b[:, :2, 3] *= torch_a[:, :2, 3]
+    test()
+
+    # gradient flow through the advanced integer indexing operation
+    kitty_b = kitty_a + 0
+    kitty_b[[0, 0, 0], ..., [2, 2, 3]] *= kitty_a[[1, 1, -1], ..., [4, 3, 2]]
+    torch_b = torch_a + 0
+    torch_b[[0, 0, 0], ..., [2, 2, 3]] *= torch_a[[1, 1, -1], ..., [4, 3, 2]]
+    test()
+
+    # gradient flow through the advanced boolean indexing operation
+    kitty_b = kitty_a.abs()
+    kitty_mask = kitty_b.detach() ** 2 < 0.5
+    kitty_b[kitty_mask] **= kitty_a[kitty_mask].abs()
+
+    torch_b = torch_a.abs()
+    torch_mask = torch_b.detach() ** 2 < 0.5
+    torch_b[torch_mask] **= torch_a[torch_mask].abs()
+
+    test()
+

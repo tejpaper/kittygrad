@@ -7,7 +7,10 @@ import kittygrad.func as func
 from ..utils import *
 
 
-def scalar2tensor(scalar: Scalar, tensor: Tensor, promotion: bool, broadcasting: bool) -> Tensor:
+def scalar2tensor(scalar: Scalar,
+                  tensor: Tensor,
+                  promotion: bool = True,
+                  broadcasting: bool = True) -> Tensor:
     dtype = tensor.dtype if promotion else DEFAULT_DTYPE
 
     if broadcasting:
@@ -16,9 +19,16 @@ def scalar2tensor(scalar: Scalar, tensor: Tensor, promotion: bool, broadcasting:
         return tsr.tensor(scalar, dtype=dtype)
 
 
-def array2tensor(array: np.ndarray, tensor: Tensor, promotion: bool, broadcasting: bool) -> tuple[Tensor, Tensor]:
-    dtype = np.result_type(array.dtype, tensor.dtype) if promotion else None
-    casted = tsr.tensor(array, dtype=dtype)
+def array2tensor(array: np.ndarray,
+                 tensor: Tensor,
+                 promotion: bool = True,
+                 broadcasting: bool = True) -> tuple[Tensor, Tensor]:
+    if promotion:
+        dtype = np.result_type(array.dtype, tensor.dtype)
+        casted = tsr.tensor(array, dtype=dtype)
+        tensor = tensor.type(dtype)
+    else:
+        casted = tsr.tensor(array)
 
     if broadcasting:
         casted, tensor = func.broadcast_tensors(casted, tensor)
@@ -26,7 +36,10 @@ def array2tensor(array: np.ndarray, tensor: Tensor, promotion: bool, broadcastin
     return casted, tensor
 
 
-def tensor2tensor(tensor: Tensor, other: Tensor, promotion: bool, broadcasting: bool) -> tuple[Tensor, Tensor]:
+def tensor2tensor(tensor: Tensor,
+                  other: Tensor,
+                  promotion: bool = True,
+                  broadcasting: bool = True) -> tuple[Tensor, Tensor]:
     if promotion:
         dtype = np.result_type(tensor.dtype, other.dtype)
         tensor = tensor.type(dtype)

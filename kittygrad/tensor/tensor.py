@@ -11,7 +11,9 @@ from ..utils import *
 
 
 class Tensor:
-    def __init__(self, data, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
+    __array_ufunc__ = None
+
+    def __init__(self, data, *, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
         if type(data) == type(self):
             raise RuntimeError("If you want to create a new tensor from another, use "
                                "sourceTensor.detach() and then specify the requires_grad attribute.")
@@ -159,11 +161,6 @@ class Tensor:
     def version(self) -> int:
         return self._version.value
 
-    # ================================================== Numpy Issues ==================================================
-
-    def __array_ufunc__(*args, **kwargs) -> typing.NoReturn:
-        raise NotImplementedError("Unsupported operation with NumPy array. Try swapping operands.")  # TODO: mb develop
-
     # ====================================================== Func ======================================================
 
     def __pos__(self) -> Tensor:
@@ -250,7 +247,7 @@ class Tensor:
         return func.matmul.__wrapped__(self, other)
 
     @autocast(op_symbol='@', reverse=True, broadcasting=False, prohibited_types=[Scalar])
-    def __rmatmul__(self, other: Tensor) -> Tensor:  # TODO: other is only a tensor (for now)
+    def __rmatmul__(self, other: np.ndarray | Tensor) -> Tensor:
         return func.matmul.__wrapped__(other, self)
 
     # ================================================== Inplace Func ==================================================
@@ -321,6 +318,38 @@ class Tensor:
     def __setitem__(self, key, value: Operand) -> None:
         return func._index_put(self, value, key)
 
+    # =================================================== Comparison ===================================================
+
+    def __lt__(self, other: Operand) -> np.ndarray:
+        if type(other) == type(self):
+            other = other._data
+        return self._data < other
+
+    def __gt__(self, other: Operand) -> np.ndarray:
+        if type(other) == type(self):
+            other = other._data
+        return self._data > other
+
+    def __le__(self, other: Operand) -> np.ndarray:
+        if type(other) == type(self):
+            other = other._data
+        return self._data <= other
+
+    def __ge__(self, other: Operand) -> np.ndarray:
+        if type(other) == type(self):
+            other = other._data
+        return self._data >= other
+
+    def __eq__(self, other: Operand) -> np.ndarray:
+        if type(other) == type(self):
+            other = other._data
+        return self._data == other
+
+    def __ne__(self, other: Operand) -> np.ndarray:
+        if type(other) == type(self):
+            other = other._data
+        return self._data != other
+
     # ================================================== Interaction ===================================================
 
     def type(self, dtype: type | np.dtype) -> Tensor:
@@ -338,8 +367,12 @@ class Tensor:
         else:
             return self._data.item()
 
-    def detach(self) -> Tensor:  # unlike torch makes a full copy of a tensor
+    def detach(self) -> Tensor:
+        # unlike torch creates a copy that does not share the same storage with the source tensor
         return tensor(self._data.copy())
+
+    def clone(self) -> Tensor:
+        return func._clone(self)
 
     def retain_grad(self) -> None:
         if not self._requires_grad:

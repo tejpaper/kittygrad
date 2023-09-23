@@ -38,5 +38,11 @@ class IndexBackward(FnBackward):
 
 class IndexPutBackward(FnBackward):
     def _propagate(self) -> None:
-        self._grad[self._ctx.key] = 0
-        self._next_functions[0].propagate(self._grad)
+        base_fn, value_fn = self._next_functions
+
+        if value_fn is not None:
+            value_fn.propagate(self._grad[self._ctx.key])
+
+        if base_fn is not None:
+            self._grad[self._ctx.key] = 0
+            base_fn.propagate(self._grad)

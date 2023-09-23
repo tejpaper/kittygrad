@@ -5,6 +5,7 @@ from .activation import (
 )
 from .ops import (
     _type,
+    _clone,
     _neg,
     _abs,
     _exp,

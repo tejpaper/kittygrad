@@ -273,6 +273,7 @@ def test_version_control(shapes, dtypes, compare):
         (kitty_a.squeeze, ()),
         (kitty_a.unsqueeze, (-1,)),
         (kitty_a.expand, (3, *kitty_a.shape)),
+        (kitty_a.__getitem__, (0,)),
     ]):
         kitty_b = method(*args)
 
@@ -283,5 +284,3 @@ def test_version_control(shapes, dtypes, compare):
 
         assert kitty_b.version == i + 1
         assert kitty_b._data.base is kitty_a._data
-
-    # TODO: add basic indexing tests
