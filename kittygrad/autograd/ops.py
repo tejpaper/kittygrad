@@ -163,7 +163,7 @@ class StdBackward(VarBackward):
 
         self._grad /= (self._ctx.n - self._ctx.correction)
         self._grad /= self._ctx.out._data
-        super()._var_std_propagate()
+        self._var_std_propagate()
 
 
 class MmBackward(FnBackward):

@@ -283,3 +283,5 @@ def test_version_control(shapes, dtypes, compare):
 
         assert kitty_b.version == i + 1
         assert kitty_b._data.base is kitty_a._data
+
+    # TODO: add basic indexing tests

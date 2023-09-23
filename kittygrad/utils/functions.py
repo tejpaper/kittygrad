@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import typing
 from collections.abc import Iterable
 
 from .constants import *
@@ -7,7 +8,7 @@ from .constants import *
 manual_seed = np.random.seed
 
 
-def flatten(x: tuple[int, ...] | list[int] | Scalar) -> list:
+def flatten(x: typing.Any) -> list:
     return sum(map(flatten, x), []) if isinstance(x, Iterable) else [x]
 
 

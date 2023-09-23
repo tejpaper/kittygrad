@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import warnings
 from ctypes import c_int64 as mutable_int
+from types import EllipsisType, NoneType
 
 import kittygrad.func as func
 from ..autograd.engine import FnBackward, check_locks
@@ -34,7 +35,7 @@ class Tensor:
             raise TypeError(f"Data type '{dtype.__name__}' is not supported.")
         elif dtype_unknown and not supported_dtype:
             if is_ndarray:
-                warnings.warn("Passed NumPy array has an unsupported data type. "
+                warnings.warn(f"Passed NumPy array has an unsupported data type '{data.dtype}'. "
                               f"Created a copy based on '{DEFAULT_DTYPE.__name__}' dtype.")
             self._data = np.array(data, DEFAULT_DTYPE)
         elif not is_ndarray and supported_dtype:
@@ -306,21 +307,19 @@ class Tensor:
     def expand(self, *sizes: int) -> Tensor:
         return func.broadcast_to(self, sizes)
 
-    def __getitem__(self, *args, **kwargs) -> Tensor:
-        if self._requires_grad:
-            return tensor(data=self._data.__getitem__(*args, **kwargs))  # TODO: SelectBackward
-        else:
-            return tensor(data=self._data.__getitem__(*args, **kwargs))
+    def __getitem__(self, key) -> Tensor:
+        if isinstance(key, tuple):
+            for ind in key:
+                if type(ind) not in {int, slice, EllipsisType, NoneType}:
+                    return func._index.__wrapped__(self, key)
 
-    # @inplace  TODO
-    def __setitem__(self, key, value) -> None:
-        if type(value) == type(self):
-            value = value._data
+        elif isinstance(key, list | np.ndarray):
+            return func._index.__wrapped__(self, key)
 
-        if self._requires_grad:
-            self._data.__setitem__(key, value)  # TODO: CopySlices
-        else:
-            self._data.__setitem__(key, value)
+        return func._index(self, key)
+
+    def __setitem__(self, key, value: Operand) -> None:
+        return func._index_put(self, value, key)
 
     # ================================================== Interaction ===================================================
 

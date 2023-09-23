@@ -177,59 +177,6 @@ def test_setters():
                               "require differentiation use var_no_grad = var.detach().")
 
 
-def test_indexing():  # TODO: move to test_view.py
-    torch_a = torch.tensor([1, 2, 3.])
-    torch_b = torch_a
-    torch_b[1] = 100
-
-    kitty_a = kitty.tensor([1, 2, 3.])
-    kitty_b = kitty_a
-    kitty_b[1] = 100
-
-    assert repr(kitty_a) == repr(torch_a)
-
-    torch_a = torch.tensor([1., 2, 3])
-    torch_b = torch_a[:2]
-
-    kitty_a = kitty.tensor([1., 2, 3])
-    kitty_b = kitty_a[:2]
-
-    assert repr(kitty_b) == repr(torch_b)
-
-    torch_b[0] = 1000
-    kitty_b[0] = 1000
-
-    assert repr(kitty_a) == repr(torch_a)
-
-    torch_a = torch.tensor([1, 2, 3.])
-    torch_a.data[0] = 100
-
-    kitty_a = kitty.tensor([1, 2, 3.])
-    kitty_a.data[0] = 100
-
-    assert repr(kitty_a) == repr(torch_a)
-
-    torch_a = torch.tensor([[1, 2, 3], [4, 5, 6.]])
-    kitty_a = kitty.tensor([[1, 2, 3], [4, 5, 6.]])
-
-    assert repr(kitty_a[:, ::2]) == repr(torch_a[:, ::2])
-
-    torch_a = torch.tensor([1, 2.])
-    torch_b = torch.tensor([[0, 0.], [0, 0], [0, 0]])
-    torch_b[1] = torch_a
-
-    kitty_a = kitty.tensor([1, 2.])
-    kitty_b = kitty.tensor([[0, 0.], [0, 0], [0, 0]])
-    kitty_b[1] = kitty_a
-
-    assert repr(kitty_b) == repr(torch_b)
-
-    torch_a[0] = 1000
-    kitty_a[0] = 1000
-
-    assert repr(kitty_b) == repr(torch_b)
-
-
 def test_methods():
     tensor = kitty.tensor([1, 2, 3], dtype=kitty.double)
     assert tensor.dtype == kitty.double

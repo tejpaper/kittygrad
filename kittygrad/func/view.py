@@ -8,8 +8,10 @@ from ..autograd.view import (
     SqueezeBackward,
     UnsqueezeBackward,
     ExpandBackward,
+    IndexBackward,
+    IndexPutBackward,
 )
-from .handler import view
+from .handler import inplace, view
 from ..utils import *
 
 
@@ -129,3 +131,27 @@ def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
     # numpy exceptions are absolutely fine
     result_shape = np.broadcast(*[t._data for t in tensors]).shape
     return [broadcast_to(t, result_shape) for t in tensors]
+
+
+@view
+@backward_graph(IndexBackward)
+def _index(tensor: Tensor, key, ctx: DotDict[str, list]) -> Tensor:
+    if not isinstance(key, tuple):
+        key = (key,)
+    if not any(ind is Ellipsis for ind in key):
+        key = (*key, ...)
+
+    ctx.key = key
+    ctx.shape = tensor.shape
+    return tsr.tensor(
+        data=tensor._data[*key],
+        requires_grad=tensor.requires_grad,
+    )
+
+
+@inplace(promotion=False, broadcasting=False)
+@backward_graph(IndexPutBackward)
+def _index_put(tensor: Tensor, value: Operand, key, ctx: DotDict[str, list]) -> Tensor:
+    tensor._data[key] = value._data
+    ctx.key = key
+    return tensor

@@ -7,6 +7,37 @@ import kittygrad.func as func
 from ..utils import *
 
 
+def scalar2tensor(scalar: Scalar, tensor: Tensor, promotion: bool, broadcasting: bool) -> Tensor:
+    dtype = tensor.dtype if promotion else DEFAULT_DTYPE
+
+    if broadcasting:
+        return tsr.tensor(np.full(tensor.shape, scalar, dtype=dtype))
+    else:
+        return tsr.tensor(scalar, dtype=dtype)
+
+
+def array2tensor(array: np.ndarray, tensor: Tensor, promotion: bool, broadcasting: bool) -> tuple[Tensor, Tensor]:
+    dtype = np.result_type(array.dtype, tensor.dtype) if promotion else None
+    casted = tsr.tensor(array, dtype=dtype)
+
+    if broadcasting:
+        casted, tensor = func.broadcast_tensors(casted, tensor)
+
+    return casted, tensor
+
+
+def tensor2tensor(tensor: Tensor, other: Tensor, promotion: bool, broadcasting: bool) -> tuple[Tensor, Tensor]:
+    if promotion:
+        dtype = np.result_type(tensor.dtype, other.dtype)
+        tensor = tensor.type(dtype)
+        other = other.type(dtype)
+
+    if broadcasting:
+        tensor, other = func.broadcast_tensors(tensor, other)
+
+    return tensor, other
+
+
 def autocast(op_symbol: str = None,
              reverse: bool = False,
              promotion: bool = True,
@@ -17,51 +48,38 @@ def autocast(op_symbol: str = None,
         prohibited_types = []
 
     def handler_decorator(function: typing.Callable) -> typing.Callable:
-
         @wraps(function)
         def handler(tensor: Tensor, other: Operand, *args, **kwargs) -> Tensor:
-            nonlocal promotion
 
             if isinstance(other, Scalar) and Scalar not in prohibited_types:
-                other = tsr.tensor(np.full(tensor.shape, other, dtype=tensor.dtype))
-                return function(tensor, other, *args, **kwargs)
+                other = scalar2tensor(other, tensor, promotion, broadcasting)
+            elif isinstance(other, np.ndarray) and np.ndarray not in prohibited_types:
+                other, tensor = array2tensor(other, tensor, promotion, broadcasting)
+            elif isinstance(other, tsr.Tensor):
+                tensor, other = tensor2tensor(tensor, other, promotion, broadcasting)
+            else:
+                # function
+                if op_symbol is None:
+                    raise TypeError("Unsupported argument type(s) for {}: 'Tensor' and '{}'."
+                                    .format(function.__name__, type(other).__name__))
 
-            if isinstance(other, np.ndarray) and np.ndarray not in prohibited_types:
-                other = tsr.tensor(other, dtype=tensor.dtype)
-                promotion = False
+                # operator
+                if reverse:
+                    tensor, other = other, tensor
 
-            if isinstance(other, tsr.Tensor):
-                if promotion:
-                    cast_to = np.result_type(tensor.dtype, other.dtype)
-                    tensor = tensor.type(cast_to)
-                    other = other.type(cast_to)
+                raise TypeError("Unsupported operand type(s) for {}: '{}' and '{}'."
+                                .format(op_symbol, type(tensor).__name__, type(other).__name__))
 
-                if broadcasting:
-                    tensor, other = func.broadcast_tensors(tensor, other)
-
-                return function(tensor, other, *args, **kwargs)
-
-            # function
-            if op_symbol is None:
-                raise TypeError("Unsupported argument type(s) for {}: 'Tensor' and '{}'."
-                                .format(function.__name__, type(other).__name__))
-
-            # operator
-            if reverse:
-                tensor, other = other, tensor
-
-            raise TypeError("Unsupported operand type(s) for {}: '{}' and '{}'."
-                            .format(op_symbol, type(tensor).__name__, type(other).__name__))
-
+            return function(tensor, other, *args, **kwargs)
         return handler
     return handler_decorator
 
 
-def inplace(*autocast_args, **autocast_kwargs) -> typing.Callable:
+def inplace(promotion: bool = True, broadcasting: bool = True, **autocast_kwargs) -> typing.Callable:
     def handler_decorator(function: typing.Callable) -> typing.Callable:
 
         @wraps(function)
-        @autocast(*autocast_args, **autocast_kwargs, promotion=False, broadcasting=False)
+        @autocast(**autocast_kwargs, promotion=False, broadcasting=False)
         def handler(tensor: Tensor, other: Tensor, *args, **kwargs) -> Tensor:
 
             if tensor._is_leaf and tensor._requires_grad:
@@ -70,19 +88,23 @@ def inplace(*autocast_args, **autocast_kwargs) -> typing.Callable:
                 raise RuntimeError("The inplace operation cannot be applied to a read-only tensor. If this "
                                    "tensor is a view of another, you can try to do the same operation with it.")
 
-            cast_to = np.result_type(tensor.dtype, other.dtype)
+            src_tensor = tensor
 
-            if tensor.dtype != cast_to:
-                raise RuntimeError("Output with dtype '{}' doesn't match the promotion dtype '{}'."
-                                   .format(tensor.dtype, cast_to))
+            if promotion:
+                tensor, other = tensor2tensor(tensor, other, promotion=True, broadcasting=False)
 
-            prev_shape = tensor.shape
-            tensor, other = func.broadcast_tensors(tensor, other.type(cast_to))
+                if src_tensor.dtype != tensor.dtype:
+                    raise RuntimeError("Output with dtype '{}' doesn't match the promotion dtype '{}'."
+                                       .format(src_tensor.dtype, tensor.dtype))
 
-            if tensor.shape != prev_shape:
-                raise RuntimeError("Output with shape {} doesn't match the broadcast shape {}."
-                                   .format(prev_shape, tensor.shape))
+            if broadcasting:
+                tensor, other = tensor2tensor(tensor, other, promotion=False, broadcasting=True)
 
+                if src_tensor.shape != tensor.shape:
+                    raise RuntimeError("Output with shape {} doesn't match the broadcast shape {}."
+                                       .format(src_tensor.shape, tensor.shape))
+
+            tensor._requires_grad |= other.requires_grad
             out = function(tensor, other, *args, **kwargs)
 
             tensor._version.value += 1
@@ -96,9 +118,10 @@ def inplace(*autocast_args, **autocast_kwargs) -> typing.Callable:
 
 def view(function: typing.Callable) -> typing.Callable:
     @wraps(function)
-    def handler(self, *args, **kwargs) -> Tensor:
-        new_view = function(self, *args, **kwargs)
-        new_view._version = self._version
+    def handler(tensor: Tensor, *args, **kwargs) -> Tensor:
+        new_view = function(tensor, *args, **kwargs)
+        assert new_view is tensor or new_view._data.base is not None  # TODO: remove me after a bunch of tests
+        new_view._version = tensor._version
         return new_view
 
     return handler

@@ -479,11 +479,11 @@ def test_inplace(shapes, dtypes, squeeze_dims, compare):
     # __itruediv__, detach
     kitty_c = kitty_a.detach()
     kitty_c /= kitty_b
-    kitty_d = kitty_c - kitty_b  # there is a pytest bug when using plus
+    kitty_d = kitty_c + kitty_b
 
     torch_c = torch_a.detach().clone()
     torch_c /= torch_b
-    torch_d = torch_c - torch_b
+    torch_d = torch_c + torch_b
 
     assert compare(kitty_c, torch_c)
     assert compare(kitty_d, torch_d)

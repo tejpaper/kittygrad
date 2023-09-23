@@ -205,3 +205,95 @@ def test_broadcast_tensors(shapes, dtypes, compare):
     kitty_c_view.sum().backward()
     torch_c_view.sum().backward()
     assert compare(kitty_c.grad, torch_c.grad)
+
+
+@pytest.mark.parametrize(
+    'dtypes',
+    itertools.product(ALL_DTYPES, ALL_DTYPES, ALL_DTYPES))
+@pytest.mark.parametrize(
+    'shapes', [
+        [(4, 5, 6)],
+    ])
+@pytest.mark.parametrize(
+    'key', [
+        # basic
+        np.s_[1],
+        np.s_[(1,)],
+        np.s_[1],
+        np.s_[1],
+        np.s_[:],
+        np.s_[:, :],
+        np.s_[:, ::2],
+        np.s_[...],
+        np.s_[:, 0, ...],
+        np.s_[1, 2, 3],
+        np.s_[(1, 2, 3)],
+        np.s_[None],
+        np.s_[None, 0],
+        np.s_[(None, 0)],
+        # advanced
+        np.s_[(1, 0, 0),],
+        np.s_[[1]],
+        np.s_[[1, 0, 0]],
+        np.s_[[1, 0, 0], [0, 0, 0]],
+        np.s_[..., [0, 0, 2]],
+        np.s_[[1, 1, 1], :, [0, 0, 2]],
+        np.s_[[0, 0], [1, 1], [2, 2]],
+    ]
+)
+def test_indexing(key, shapes, dtypes, compare):
+    kitty_a, torch_a = map(next, init_tensors(shapes, dtypes))
+
+    def zero_grad():
+        kitty_a.grad = None
+        torch_a.grad = None
+
+    def test():
+        assert compare(kitty_b, torch_b)
+
+        kitty_b.sum().backward()
+        torch_b.sum().backward()
+        assert compare(kitty_a.grad, torch_a.grad)
+
+        zero_grad()
+
+    # get by index
+    kitty_b = kitty_a[key]
+    torch_b = torch_a[key]
+    test()
+
+    # set by index
+    kitty_b = kitty_a + 0
+    kitty_b[key] = 100
+    torch_b = torch_a + 0
+    torch_b[key] = 100
+    test()
+
+
+def test_indexing_exceptions(compare):
+    kitty_a, torch_a = map(next, init_tensors([(4, 5, 6)]))
+
+    def zero_grad():
+        kitty_a.grad = None
+        torch_a.grad = None
+
+    def test():
+        assert compare(kitty_b, torch_b)
+
+        kitty_b.sum().backward()
+        torch_b.sum().backward()
+        assert compare(kitty_a.grad, torch_a.grad)
+
+        zero_grad()
+
+    # numpy vs torch indexing rules
+    kitty_b = kitty_a[1, ..., [0, 0, 2]]
+    torch_b = torch_a[1, ..., [0, 0, 2]].T
+    test()
+
+    # boolean indexing
+    kitty_b = kitty_a + 0
+    kitty_b[kitty_a._data > 0] = 100  # TODO: boolean operations
+    torch_b = torch_a + 0
+    torch_b[torch_b > 0] = 100
+    test()

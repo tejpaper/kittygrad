@@ -27,3 +27,16 @@ class ExpandBackward(FnBackward):
         self._next_functions[0].propagate(
             self._grad.sum(self._ctx.expanded_dims, keepdims=True).squeeze(self._ctx.leading_dims)
         )
+
+
+class IndexBackward(FnBackward):
+    def _propagate(self) -> None:
+        extended_grad = np.zeros(self._ctx.shape, dtype=self._grad.dtype)
+        np.add.at(extended_grad, self._ctx.key, self._grad)
+        self._next_functions[0].propagate(extended_grad)
+
+
+class IndexPutBackward(FnBackward):
+    def _propagate(self) -> None:
+        self._grad[self._ctx.key] = 0
+        self._next_functions[0].propagate(self._grad)

@@ -36,4 +36,6 @@ from .view import (
     _unsqueeze,
     broadcast_to,
     broadcast_tensors,
+    _index,
+    _index_put,
 )
