@@ -19,6 +19,7 @@ from .utils import (
     # functions.py
     manual_seed,
 )
+from .viz.dot import CompGraph
 
 # configurations
 import warnings as _warnings

@@ -84,7 +84,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
             if tensor is not None and tensor.version != old_version:
                 inplace_modification_error()
 
-        # hook
+        # retain_grad hook
         if self._ctx.out.retains_grad:
             if self._ctx.out.version == self._versions.out:
                 self._ctx.out._grad = self._grad.copy()  # no ref to avoid bugs
@@ -98,9 +98,28 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         self._ctx.out._grad_fn = None
 
 
+class Hook:
+    wrappers = DotDict()
+
+    def __init__(self, builder: typing.Callable) -> None:
+        self.builder = builder
+
+    def __call__(self, *args) -> Tensor:
+        wrapped_builder = self.builder
+
+        for wrapper in Hook.wrappers.values():
+            wrapped_builder = wrapper(wrapped_builder)
+
+        return wrapped_builder(*args)
+
+    @property
+    def __wrapped__(self) -> typing.Callable:
+        return self.builder.__wrapped__
+
+
 def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
     def backward_graph_decor(function: typing.Callable) -> typing.Callable:
-
+        @Hook
         @wraps(function)
         def builder(*args) -> Tensor:
             ctx = DotDict(saved_tensors=[])
@@ -128,7 +147,6 @@ def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
             out._grad_fn = node(ctx=ctx, next_functions=next_functions)
 
             return out
-
         return builder
     return backward_graph_decor
 

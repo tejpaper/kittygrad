@@ -11,8 +11,6 @@ from ..utils import *
 
 
 class Tensor:
-    __array_ufunc__ = None
-
     def __init__(self, data, *, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
         if type(data) == type(self):
             raise RuntimeError("If you want to create a new tensor from another, use "
@@ -51,6 +49,8 @@ class Tensor:
         self._is_leaf = True
         self._retains_grad = False
         self._version = mutable_int(0)
+
+    __array_ufunc__ = None
 
     # ============================================= Tensor Representation ==============================================
 
@@ -382,7 +382,7 @@ class Tensor:
             self._retains_grad = True
 
     def backward(self, gradient: Tensor | None = None) -> None:
-        # ENTRY POINT
+        # entry point
         if not self._requires_grad:
             raise RuntimeError("Tensor does not require grad and does not have a grad_fn.")
         elif gradient is None and self.ndim:
@@ -404,7 +404,7 @@ class Tensor:
         elif self._grad_fn._lock != 0:
             warnings.warn("A .backward() call from the middle of the computational graph was noticed.")
 
-        # ENGINE
+        # engine
         self._grad_fn._lock = 1
         temp = self._grad_fn
 

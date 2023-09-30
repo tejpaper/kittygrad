@@ -5,6 +5,7 @@ import torch
 import kittygrad as kitty
 
 
+# TODO: structure tests
 class Comparison:
     TYPES_MAPPING = {
         kitty.float16.__name__: torch.float16,
@@ -33,7 +34,7 @@ class Comparison:
                 print(f'\n{attr} attribute mismatch: {attr_value_1} != {attr_value_2}.')
                 return False
 
-        if self.TYPES_MAPPING[str(kitty_tensor.dtype)] != torch_tensor.dtype:
+        if Comparison.TYPES_MAPPING[str(kitty_tensor.dtype)] != torch_tensor.dtype:
             print(f'\nTypes mismatch: {kitty_tensor.dtype} is incomparable with {torch_tensor.dtype}.')
             return False
 
@@ -52,10 +53,10 @@ class Comparison:
 
         diff = np.abs(kitty_array - torch_array)
         torch_array_abs = np.abs(torch_array)
-        approximate_match = (diff <= self.ABS_TOL + self.REL_TOL * torch_array_abs).all()
+        approximate_match = (diff <= Comparison.ABS_TOL + Comparison.REL_TOL * torch_array_abs).all()
 
         # ratio must be less than 1 (critical value), it indicates how different the arrays are
-        ratios = (diff - self.ABS_TOL) / torch_array_abs / self.REL_TOL
+        ratios = (diff - Comparison.ABS_TOL) / torch_array_abs / Comparison.REL_TOL
         self.max_ratio = max(self.max_ratio, np.max(ratios))
         self.ratios.append(np.mean(ratios))
 
