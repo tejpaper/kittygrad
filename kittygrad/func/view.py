@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import kittygrad.tensor as tsr
-from ..autograd.engine import backward_graph
+from ..autograd.engine import BackwardGraph
 from ..autograd.view import (
     TransposeBackward,
     PermuteBackward,
@@ -15,7 +15,7 @@ from .handler import inplace, view
 from ..utils import *
 
 
-@backward_graph(TransposeBackward)
+@BackwardGraph.mount(TransposeBackward)
 def _transpose(tensor: Tensor, dim0: int, dim1: int, ctx: DotDict[str, list]) -> Tensor:
     if tensor.ndim == 0:
         raise RuntimeError("Scalar cannot be transposed.")
@@ -31,7 +31,7 @@ def _transpose(tensor: Tensor, dim0: int, dim1: int, ctx: DotDict[str, list]) ->
     )
 
 
-@backward_graph(PermuteBackward)
+@BackwardGraph.mount(PermuteBackward)
 def _permute(tensor: Tensor, dims: Size, ctx: DotDict[str, list]) -> Tensor:
     if tensor.ndim != len(dims):
         raise RuntimeError("Number of dimensions in the tensor input does not match "
@@ -47,7 +47,7 @@ def _permute(tensor: Tensor, dims: Size, ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(SqueezeBackward)
+@BackwardGraph.mount(SqueezeBackward)
 def _squeeze(tensor: Tensor, dim: int | Size | None, ctx: DotDict[str, list]) -> Tensor:
     if isinstance(dim, int):
         check_dim(dim, tensor.ndim)
@@ -64,7 +64,7 @@ def _squeeze(tensor: Tensor, dim: int | Size | None, ctx: DotDict[str, list]) ->
     )
 
 
-@backward_graph(UnsqueezeBackward)
+@BackwardGraph.mount(UnsqueezeBackward)
 def _unsqueeze(tensor: Tensor, dim: int | Size, ctx: DotDict[str, list]) -> Tensor:
     if isinstance(dim, int):
         dim = (dim,)
@@ -80,7 +80,7 @@ def _unsqueeze(tensor: Tensor, dim: int | Size, ctx: DotDict[str, list]) -> Tens
     )
 
 
-@backward_graph(ExpandBackward)
+@BackwardGraph.mount(ExpandBackward)
 def _expand(tensor: Tensor, shape: Size, expanded_dims: Size, offset: int, ctx: DotDict[str, list]) -> Tensor:
     ctx.expanded_dims = tuple(expanded_dims)
     ctx.leading_dims = tuple(range(offset))
@@ -134,7 +134,7 @@ def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
 
 
 @view
-@backward_graph(IndexBackward)
+@BackwardGraph.mount(IndexBackward)
 def _index(tensor: Tensor, key, ctx: DotDict[str, list]) -> Tensor:
     if not isinstance(key, tuple):
         key = (key,)
@@ -150,7 +150,7 @@ def _index(tensor: Tensor, key, ctx: DotDict[str, list]) -> Tensor:
 
 
 @inplace(promotion=False, broadcasting=False)
-@backward_graph(IndexPutBackward)
+@BackwardGraph.mount(IndexPutBackward)
 def _index_put(tensor: Tensor, value: Operand, key, ctx: DotDict[str, list]) -> Tensor:
     tensor._data[key] = value._data
     ctx.key = key

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 import warnings
-from functools import wraps
+from functools import update_wrapper, wraps
 
 import kittygrad.tensor as tsr
 from ..utils import *
@@ -11,7 +11,7 @@ from ..utils import *
 class BackwardAccess(abc.ABC):  # ba short
     @abc.abstractmethod
     def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
-        pass
+        raise NotImplementedError
 
     def __format__(self, format_spec: str) -> str:
         return f'<{type(self).__name__}>'.__format__(format_spec)
@@ -64,7 +64,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
     @abc.abstractmethod
     def _propagate(self) -> None:
-        pass  # self._grad can be changed here as there is a hook before it
+        raise NotImplementedError  # self._grad can be changed here as there is a hook before it
 
     def _inplace_modification_check(self) -> None:
         if self._ctx.out.version != self._versions.out:
@@ -98,57 +98,56 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         self._ctx.out._grad_fn = None
 
 
-class Hook:
+class BackwardGraph:
     wrappers = DotDict()
+    disabled = False
 
-    def __init__(self, builder: typing.Callable) -> None:
-        self.builder = builder
+    def __init__(self, function: typing.Callable, node: typing.Type[FnBackward]) -> None:
+        self.function = function
+        self.node = node
+        update_wrapper(self, function)
 
     def __call__(self, *args) -> Tensor:
-        wrapped_builder = self.builder
+        ctx = DotDict(saved_tensors=[])
+        out = self.function(*args, ctx)
 
-        for wrapper in Hook.wrappers.values():
-            wrapped_builder = wrapper(wrapped_builder)
-
-        return wrapped_builder(*args)
-
-    @property
-    def __wrapped__(self) -> typing.Callable:
-        return self.builder.__wrapped__
-
-
-def backward_graph(node: typing.Type[FnBackward]) -> typing.Callable:
-    def backward_graph_decor(function: typing.Callable) -> typing.Callable:
-        @Hook
-        @wraps(function)
-        def builder(*args) -> Tensor:
-            ctx = DotDict(saved_tensors=[])
-            out = function(*args, ctx)
-
-            if not out.requires_grad:
-                return out
-
-            out._is_leaf = False
-
-            ctx.out = out
-            next_functions = []
-
-            for arg in args:
-                if not isinstance(arg, tsr.Tensor):
-                    continue
-
-                if (tensor_grad_fn := arg.grad_fn) is not None:
-                    arg.grad_fn._lock += 1
-                elif arg.requires_grad and arg.is_leaf:
-                    tensor_grad_fn = AccumulateGrad(arg)
-
-                next_functions.append(tensor_grad_fn)
-
-            out._grad_fn = node(ctx=ctx, next_functions=next_functions)
-
+        if BackwardGraph.disabled:
+            out._requires_grad = False
+        if not out.requires_grad:
             return out
-        return builder
-    return backward_graph_decor
+
+        out._is_leaf = False
+
+        ctx.out = out
+        next_functions = []
+
+        for arg in args:
+            if not isinstance(arg, tsr.Tensor):
+                continue
+
+            if (tensor_grad_fn := arg.grad_fn) is not None:
+                arg.grad_fn._lock += 1
+            elif arg.requires_grad and arg.is_leaf:
+                tensor_grad_fn = AccumulateGrad(arg)
+
+            next_functions.append(tensor_grad_fn)
+
+        out._grad_fn = self.node(ctx=ctx, next_functions=next_functions)
+        return out
+
+    @staticmethod
+    def mount(node: typing.Type[FnBackward]) -> typing.Callable:
+        def backward_graph(function: typing.Callable) -> typing.Callable:
+            @wraps(function)
+            def apply_hooks(*args) -> Tensor:
+
+                builder = BackwardGraph(function, node)
+                for wrapper in BackwardGraph.wrappers.values():
+                    builder = wrapper(builder)
+
+                return builder(*args)
+            return apply_hooks
+        return backward_graph
 
 
 def check_locks(head: FnBackward) -> None:

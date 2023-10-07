@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import kittygrad.tensor as tsr
-from ..autograd.engine import backward_graph
+from ..autograd.engine import BackwardGraph
 from ..autograd.ops import (
     ToCopyBackward,
     CloneBackward,
@@ -30,7 +30,7 @@ from .handler import autocast
 from ..utils import *
 
 
-@backward_graph(ToCopyBackward)
+@BackwardGraph.mount(ToCopyBackward)
 def _type(tensor: Tensor, dtype: type | np.dtype, ctx: DotDict[str, list]) -> Tensor:
     ctx.prev_dtype = tensor.dtype
     return tsr.tensor(
@@ -40,7 +40,7 @@ def _type(tensor: Tensor, dtype: type | np.dtype, ctx: DotDict[str, list]) -> Te
     )
 
 
-@backward_graph(CloneBackward)
+@BackwardGraph.mount(CloneBackward)
 def _clone(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=tensor._data.copy(),
@@ -49,7 +49,7 @@ def _clone(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(NegBackward)
+@BackwardGraph.mount(NegBackward)
 def _neg(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=-tensor._data,
@@ -58,7 +58,7 @@ def _neg(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(AbsBackward)
+@BackwardGraph.mount(AbsBackward)
 def _abs(tensor: Tensor, ctx: DotDict[str, list]) -> Tensor:
     ctx.saved_tensors.append(tensor)
     return tsr.tensor(
@@ -68,7 +68,7 @@ def _abs(tensor: Tensor, ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(ExpBackward)
+@BackwardGraph.mount(ExpBackward)
 def _exp(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=np.exp(tensor._data, **NP_OPS_CONFIG),
@@ -77,7 +77,7 @@ def _exp(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(LogBackward)
+@BackwardGraph.mount(LogBackward)
 def _log(tensor: Tensor, ctx: DotDict[str, list]) -> Tensor:
     ctx.saved_tensors.append(tensor)
     return tsr.tensor(
@@ -87,7 +87,7 @@ def _log(tensor: Tensor, ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(AddBackward)
+@BackwardGraph.mount(AddBackward)
 def _add(tensor: Tensor, other: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=np.add(tensor._data, other._data, **NP_OPS_CONFIG),
@@ -96,13 +96,13 @@ def _add(tensor: Tensor, other: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(AddBackward)
+@BackwardGraph.mount(AddBackward)
 def _iadd(tensor: Tensor, other: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     np.add(tensor._data, other._data, out=tensor._data, **NP_OPS_CONFIG)
     return tensor
 
 
-@backward_graph(SubBackward)
+@BackwardGraph.mount(SubBackward)
 def _sub(tensor: Tensor, other: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=np.subtract(tensor._data, other._data, **NP_OPS_CONFIG),
@@ -111,13 +111,13 @@ def _sub(tensor: Tensor, other: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(SubBackward)
+@BackwardGraph.mount(SubBackward)
 def _isub(tensor: Tensor, other: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     np.subtract(tensor._data, other._data, out=tensor._data, **NP_OPS_CONFIG)
     return tensor
 
 
-@backward_graph(MulBackward)
+@BackwardGraph.mount(MulBackward)
 def _mul(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     ctx.saved_tensors.extend([
         tensor if other.requires_grad else None,
@@ -130,7 +130,7 @@ def _mul(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(IMulBackward)
+@BackwardGraph.mount(IMulBackward)
 def _imul(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     ctx.saved_arrays = [
         tensor._data.copy() if other.requires_grad else None,
@@ -141,7 +141,7 @@ def _imul(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     return tensor
 
 
-@backward_graph(DivBackward)
+@BackwardGraph.mount(DivBackward)
 def _div(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     other_inv = np.divide(1, other._data, dtype=other.dtype)
     ctx.other_inv = other_inv
@@ -153,7 +153,7 @@ def _div(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(IDivBackward)
+@BackwardGraph.mount(IDivBackward)
 def _idiv(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     other_inv = np.divide(1, other._data, dtype=other.dtype)
 
@@ -168,7 +168,7 @@ def _idiv(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     return tensor
 
 
-@backward_graph(PowBackward)
+@BackwardGraph.mount(PowBackward)
 def _pow(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     ctx.saved_tensors.extend([
         tensor,  # always needed (see PowBackward)
@@ -181,7 +181,7 @@ def _pow(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(IPowBackward)
+@BackwardGraph.mount(IPowBackward)
 def _ipow(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     if tensor.requires_grad:
         ctx.saved_arrays = [tensor._data.copy(), other._data.copy()]
@@ -194,7 +194,7 @@ def _ipow(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     return tensor
 
 
-@backward_graph(SumBackward)
+@BackwardGraph.mount(SumBackward)
 def _sum(tensor: Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str, list]) -> Tensor:
     dim = dim2tuple(dim, tensor.ndim)
     check_dims(dim, tensor.ndim)
@@ -208,7 +208,7 @@ def _sum(tensor: Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str
     )
 
 
-@backward_graph(MeanBackward)
+@BackwardGraph.mount(MeanBackward)
 def _mean(tensor: Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[str, list]) -> Tensor:
     dim = dim2tuple(dim, tensor.ndim)
     check_dims(dim, tensor.ndim)
@@ -222,7 +222,7 @@ def _mean(tensor: Tensor, dim: int | Size | None, keepdim: bool, ctx: DotDict[st
     )
 
 
-@backward_graph(VarBackward)
+@BackwardGraph.mount(VarBackward)
 def _var(tensor: Tensor, dim: int | Size | None, correction: int, keepdim: bool, ctx: DotDict[str, list]) -> Tensor:
     dim = dim2tuple(dim, tensor.ndim)
     check_dims(dim, tensor.ndim)
@@ -252,14 +252,14 @@ def _var(tensor: Tensor, dim: int | Size | None, correction: int, keepdim: bool,
     )
 
 
-@backward_graph(StdBackward)
+@BackwardGraph.mount(StdBackward)
 def _std(*args, **kwargs) -> Tensor:
     out = _var.__wrapped__(*args, **kwargs)
     np.sqrt(out._data, out=out._data)
     return out
 
 
-@backward_graph(MmBackward)
+@BackwardGraph.mount(MmBackward)
 def _mm(tensor: Tensor, other: Tensor, ctx: DotDict[str, list]) -> Tensor:
     ctx.saved_tensors.extend([
         tensor if other.requires_grad else None,
@@ -283,7 +283,7 @@ def mm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like 
     return _mm(input, mat2)
 
 
-@backward_graph(DotBackward)
+@BackwardGraph.mount(DotBackward)
 def _dot(*args, **kwargs) -> Tensor:
     return _mm.__wrapped__(*args, **kwargs)
 
@@ -300,7 +300,7 @@ def dot(input: Tensor, other: np.ndarray | Tensor) -> Tensor:  # noqa: torch-lik
     return _dot(input, other)
 
 
-@backward_graph(MvBackward)
+@BackwardGraph.mount(MvBackward)
 def _mv(*args, **kwargs) -> Tensor:
     return _mm.__wrapped__(*args, **kwargs)
 
@@ -318,7 +318,7 @@ def mv(input: Tensor, vec: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like A
     return _mv(input, vec)
 
 
-@backward_graph(BmmBackward)
+@BackwardGraph.mount(BmmBackward)
 def _bmm(*args, **kwargs) -> Tensor:
     return _mm.__wrapped__(*args, **kwargs)
 

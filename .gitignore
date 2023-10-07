@@ -1,5 +1,6 @@
 .idea
 .ipynb_checkpoints
+extra
 **/__pycache__/
 test/.pytest_cache
 main.ipynb

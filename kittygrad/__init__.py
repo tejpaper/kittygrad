@@ -19,6 +19,7 @@ from .utils import (
     # functions.py
     manual_seed,
 )
+from .autograd.interaction import no_grad, Function
 from .viz.dot import CompGraph
 
 # configurations

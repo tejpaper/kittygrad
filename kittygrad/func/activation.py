@@ -6,11 +6,11 @@ from ..autograd.activation import (
     TanhBackward,
     ReluBackward,
 )
-from ..autograd.engine import backward_graph
+from ..autograd.engine import BackwardGraph
 from ..utils import *
 
 
-@backward_graph(SigmoidBackward)
+@BackwardGraph.mount(SigmoidBackward)
 def _sigmoid(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=1 / (1 + np.exp(-tensor._data)),
@@ -19,7 +19,7 @@ def _sigmoid(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(TanhBackward)
+@BackwardGraph.mount(TanhBackward)
 def _tanh(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     exp = np.exp(2 * tensor._data)
     return tsr.tensor(
@@ -29,7 +29,7 @@ def _tanh(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     )
 
 
-@backward_graph(ReluBackward)
+@BackwardGraph.mount(ReluBackward)
 def _relu(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
     return tsr.tensor(
         data=tensor._data * (tensor._data > 0),

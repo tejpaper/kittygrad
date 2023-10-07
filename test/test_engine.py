@@ -1,7 +1,5 @@
 import itertools
 
-import pytest
-
 from conftest import *
 
 

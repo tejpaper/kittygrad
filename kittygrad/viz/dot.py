@@ -7,14 +7,12 @@ import kittygrad.autograd.engine as engine
 from kittygrad.tensor import Tensor
 from ..utils import *
 
-# TODO: test
-
 
 def obj_name(obj: typing.Any) -> str:
     return str(id(obj))
 
 
-class CompGraph(Digraph):
+class CompGraph(Digraph):  # TODO: examples (plus no_grad)
     def __init__(self, *,
                  leaf_color: str = '#7ba763',
                  leaf_fillcolor: str = '#d1e4cf',
@@ -65,17 +63,17 @@ class CompGraph(Digraph):
         self._stash = {}
 
     def __enter__(self) -> typing.Self:
-        if engine.Hook.wrappers.comp_graph:
+        if engine.BackwardGraph.wrappers.comp_graph:
             raise RuntimeError("CompGraph context manager does not support nesting.")
         else:
-            engine.Hook.wrappers.comp_graph = self._hook
+            engine.BackwardGraph.wrappers.comp_graph = self._hook
             return self
 
     def __exit__(self, *_args, **_kwargs) -> None:
-        del engine.Hook.wrappers.comp_graph
+        del engine.BackwardGraph.wrappers.comp_graph
         self._stash.clear()
 
-    def _tensor_node_cfg(self, tensor: Tensor) -> dict[str, str]:
+    def _tensor_node_cfg(self, tensor: Tensor) -> DotDict[str, str]:
         if not tensor.is_leaf:
             color = self.branch_color
             fillcolor = self.branch_fillcolor
@@ -86,25 +84,30 @@ class CompGraph(Digraph):
             color = self.dried_leaf_color
             fillcolor = self.dried_leaf_fillcolor
 
-        return dict(name=obj_name(tensor),
-                    label=f'Tensor\n{tensor.shape}',
-                    style='filled',
-                    color=color,
-                    fillcolor=fillcolor)
+        return DotDict(name=obj_name(tensor),
+                       label=f'Tensor\n{tensor.shape}',
+                       style='filled',
+                       color=color,
+                       fillcolor=fillcolor)
 
-    def _forward_node_cfg(self, function: typing.Callable, out_cfg: dict[str, str]) -> dict[str, str]:
-        return dict(name=f'forward_{self._level}',
-                    label=function.__name__[1:],
-                    style='rounded,filled',
-                    color=out_cfg['color'],
-                    fillcolor=out_cfg['fillcolor'])
+    def _forward_node_cfg(self, function: typing.Callable, out_cfg: DotDict[str, str]) -> DotDict[str, str]:
+        return DotDict(name=f'forward_{self._level}',
+                       label=function.__name__[1:],
+                       style='rounded,filled',
+                       color=out_cfg['color'],
+                       fillcolor=out_cfg['fillcolor'])
 
-    def _backward_node_cfg(self, ba: engine.BackwardAccess) -> dict[str, str]:
-        return dict(name=obj_name(ba),
-                    label=type(ba).__name__,
-                    style='rounded,filled',
-                    color=self.backward_color,
-                    fillcolor=self.backward_fillcolor)
+    def _backward_node_cfg(self, ba: engine.BackwardAccess) -> DotDict[str, str]:
+        return DotDict(name=obj_name(ba),
+                       label=type(ba).__name__,
+                       style='rounded,filled',
+                       color=self.backward_color,
+                       fillcolor=self.backward_fillcolor)
+
+    def _stash_check(self, ba_name: str) -> None:
+        if ba_name not in self._stash:
+            raise RuntimeError("Visualization of the computational graph "
+                               "must be built starting from the leaves.")
 
     def _hook(self, builder: typing.Callable) -> typing.Callable:
         @wraps(builder)
@@ -117,39 +120,42 @@ class CompGraph(Digraph):
 
             # forward pass
             ot_cfg = self._tensor_node_cfg(output_tensor)
-            ot_name = ot_cfg['name']
+            ot_name = ot_cfg.name
             self.node(**ot_cfg)
 
             op_cfg = self._forward_node_cfg(builder, ot_cfg)
-            op_name = op_cfg['name']
+            op_name = op_cfg.name
             operation_subgraph.node(**op_cfg)
 
-            self.edge(op_name, ot_name, color=op_cfg['color'])
+            self.edge(op_name, ot_name, color=op_cfg.color)
 
             for arg in args:
                 if not isinstance(arg, Tensor):
                     continue
 
                 it_cfg = self._tensor_node_cfg(arg)
-                it_name = it_cfg['name']
+                it_name = it_cfg.name
 
                 if it_name not in self._stash:
                     self._stash[it_name] = arg  # prevents garbage collection
                     operands_subgraph.node(**it_cfg)
 
-                self.edge(it_name, op_name, color=it_cfg['color'])
+                self.edge(it_name, op_name, color=it_cfg.color)
 
                 if arg.grad_fn is not None:
                     locked_fn = arg.grad_fn.next_functions[0] if arg is output_tensor else arg.grad_fn
-                    self.edge(it_name, obj_name(locked_fn), constraint='false', style='invis')
+                    locked_fn_name = obj_name(locked_fn)
+
+                    self._stash_check(locked_fn_name)
+                    self.edge(it_name, locked_fn_name, constraint='false', style='invis')
 
             # backward pass
             if output_tensor.requires_grad:
                 fn_cfg = self._backward_node_cfg(output_tensor.grad_fn)
-                fn_name = fn_cfg['name']
+                fn_name = fn_cfg.name
                 operation_subgraph.node(**fn_cfg)
 
-                self._stash[fn_name] = None  # makes the following exception possible
+                self._stash[fn_name] = None  # makes _stash_check exception possible
 
                 self.edge(ot_name, fn_name, color=self.backward_color, constraint='false', style='dashed')
                 self.edge(op_name, fn_name, style='invis', weight='2')
@@ -159,7 +165,7 @@ class CompGraph(Digraph):
                         continue
 
                     ba_cfg = self._backward_node_cfg(next_ba)
-                    ba_name = ba_cfg['name']
+                    ba_name = ba_cfg.name
 
                     if isinstance(next_ba, engine.AccumulateGrad):
                         operands_subgraph.node(**ba_cfg)
@@ -168,10 +174,8 @@ class CompGraph(Digraph):
                                   color=self.backward_color,
                                   dir='back',
                                   weight='1.2')
-
-                    elif ba_name not in self._stash:
-                        raise RuntimeError("Visualization of the computational graph "
-                                           "must be built starting from the leaves.")
+                    else:
+                        self._stash_check(ba_name)
 
                     self.edge(fn_name, ba_name, color=self.backward_color, constraint='false')
 
