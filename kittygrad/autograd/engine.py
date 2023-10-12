@@ -99,7 +99,8 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
 
 class BackwardGraph:
-    wrappers = DotDict()
+    pre_builder_hooks = DotDict()
+    post_builder_hooks = DotDict()
     disabled = False
 
     def __init__(self, function: typing.Callable, node: typing.Type[FnBackward]) -> None:
@@ -111,8 +112,6 @@ class BackwardGraph:
         ctx = DotDict(saved_tensors=[])
         out = self.function(*args, ctx)
 
-        if BackwardGraph.disabled:
-            out._requires_grad = False
         if not out.requires_grad:
             return out
 
@@ -141,13 +140,34 @@ class BackwardGraph:
             @wraps(function)
             def apply_hooks(*args) -> Tensor:
 
-                builder = BackwardGraph(function, node)
-                for wrapper in BackwardGraph.wrappers.values():
-                    builder = wrapper(builder)
+                if BackwardGraph.disabled:
+                    dummy_ctx = DotDict(saved_tensors=[])
+                    return function(*args, dummy_ctx)
 
-                return builder(*args)
+                wrapped_func = function
+
+                for hook in BackwardGraph.pre_builder_hooks.values():
+                    wrapped_func = hook(wrapped_func)
+
+                wrapped_func = BackwardGraph(wrapped_func, node)
+
+                for hook in BackwardGraph.post_builder_hooks.values():
+                    wrapped_func = hook(wrapped_func)
+
+                return wrapped_func(*args)
             return apply_hooks
         return backward_graph
+
+    @staticmethod
+    def disable(function: typing.Callable) -> typing.Callable:
+        @wraps(function)
+        def decorated(*args, **kwargs) -> typing.Any:
+            BackwardGraph.disabled = True
+            output = function(*args, **kwargs)
+            BackwardGraph.disabled = False
+
+            return output
+        return decorated
 
 
 def check_locks(head: FnBackward) -> None:

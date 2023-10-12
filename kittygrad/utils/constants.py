@@ -15,6 +15,7 @@ DEFAULT_DTYPE = float32
 NP_OPS_CONFIG = dict(casting='no')
 
 # tensor representation
+REPR_MAX_LINE_WIDTH = 89
 REPR_PRECISION = 4
 REPR_SEPARATOR = ', '
 REPR_PREFIX = 'tensor('

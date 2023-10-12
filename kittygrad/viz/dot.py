@@ -63,14 +63,14 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad)
         self._stash = {}
 
     def __enter__(self) -> typing.Self:
-        if engine.BackwardGraph.wrappers.comp_graph:
+        if engine.BackwardGraph.post_builder_hooks.comp_graph:
             raise RuntimeError("CompGraph context manager does not support nesting.")
         else:
-            engine.BackwardGraph.wrappers.comp_graph = self._hook
+            engine.BackwardGraph.post_builder_hooks.comp_graph = self._hook
             return self
 
     def __exit__(self, *_args, **_kwargs) -> None:
-        del engine.BackwardGraph.wrappers.comp_graph
+        del engine.BackwardGraph.post_builder_hooks.comp_graph
         self._stash.clear()
 
     def _tensor_node_cfg(self, tensor: Tensor) -> DotDict[str, str]:

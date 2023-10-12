@@ -66,6 +66,7 @@ class Tensor:
 
         return REPR_PREFIX + np.array2string(
             a=self._data,
+            max_line_width=REPR_MAX_LINE_WIDTH,
             precision=REPR_PRECISION,
             separator=REPR_SEPARATOR,
             prefix=REPR_PREFIX,

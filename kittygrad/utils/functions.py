@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import typing
 from collections.abc import Iterable
 
@@ -10,6 +11,12 @@ manual_seed = np.random.seed
 
 def flatten(x: typing.Any) -> list:
     return sum(map(flatten, x), []) if isinstance(x, Iterable) else [x]
+
+
+def camel2snake(name: str) -> str:
+    """https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case"""
+    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
 def inv_permutation(permutation: Size) -> Size:
