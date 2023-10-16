@@ -16,7 +16,7 @@ from ..utils import *
 
 
 @BackwardGraph.mount(TransposeBackward)
-def _transpose(tensor: Tensor, dim0: int, dim1: int, ctx: DotDict[str, list]) -> Tensor:
+def _transpose(ctx: DotDict, tensor: Tensor, dim0: int, dim1: int) -> Tensor:
     if tensor.ndim == 0:
         raise RuntimeError("Scalar cannot be transposed.")
 
@@ -32,7 +32,7 @@ def _transpose(tensor: Tensor, dim0: int, dim1: int, ctx: DotDict[str, list]) ->
 
 
 @BackwardGraph.mount(PermuteBackward)
-def _permute(tensor: Tensor, dims: Size, ctx: DotDict[str, list]) -> Tensor:
+def _permute(ctx: DotDict, tensor: Tensor, dims: Size) -> Tensor:
     if tensor.ndim != len(dims):
         raise RuntimeError("Number of dimensions in the tensor input does not match "
                            "the length of the desired ordering of dimensions i.e. "
@@ -48,7 +48,7 @@ def _permute(tensor: Tensor, dims: Size, ctx: DotDict[str, list]) -> Tensor:
 
 
 @BackwardGraph.mount(SqueezeBackward)
-def _squeeze(tensor: Tensor, dim: int | Size | None, ctx: DotDict[str, list]) -> Tensor:
+def _squeeze(ctx: DotDict, tensor: Tensor, dim: int | Size | None) -> Tensor:
     if isinstance(dim, int):
         check_dim(dim, tensor.ndim)
         dim = (dim,) if tensor.shape[dim] == 1 else ()
@@ -65,7 +65,7 @@ def _squeeze(tensor: Tensor, dim: int | Size | None, ctx: DotDict[str, list]) ->
 
 
 @BackwardGraph.mount(UnsqueezeBackward)
-def _unsqueeze(tensor: Tensor, dim: int | Size, ctx: DotDict[str, list]) -> Tensor:
+def _unsqueeze(ctx: DotDict, tensor: Tensor, dim: int | Size) -> Tensor:
     if isinstance(dim, int):
         dim = (dim,)
     else:
@@ -81,7 +81,7 @@ def _unsqueeze(tensor: Tensor, dim: int | Size, ctx: DotDict[str, list]) -> Tens
 
 
 @BackwardGraph.mount(ExpandBackward)
-def _expand(tensor: Tensor, shape: Size, expanded_dims: Size, offset: int, ctx: DotDict[str, list]) -> Tensor:
+def _expand(ctx: DotDict, tensor: Tensor, shape: Size, expanded_dims: Size, offset: int) -> Tensor:
     ctx.expanded_dims = tuple(expanded_dims)
     ctx.leading_dims = tuple(range(offset))
 
@@ -135,7 +135,7 @@ def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
 
 @view
 @BackwardGraph.mount(IndexBackward)
-def _index(tensor: Tensor, key, ctx: DotDict[str, list]) -> Tensor:
+def _index(ctx: DotDict, tensor: Tensor, key) -> Tensor:
     if not isinstance(key, tuple):
         key = (key,)
     if not any(ind is Ellipsis for ind in key):
@@ -151,7 +151,7 @@ def _index(tensor: Tensor, key, ctx: DotDict[str, list]) -> Tensor:
 
 @inplace(promotion=False, broadcasting=False)
 @BackwardGraph.mount(IndexPutBackward)
-def _index_put(tensor: Tensor, value: Operand, key, ctx: DotDict[str, list]) -> Tensor:
+def _index_put(ctx: DotDict, tensor: Tensor, value: Operand, key) -> Tensor:
     tensor._data[key] = value._data
     ctx.key = key
     return tensor

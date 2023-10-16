@@ -12,9 +12,9 @@ from ..utils import *
 
 class Tensor:
     def __init__(self, data, *, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
-        if type(data) == type(self):
+        if type(data) is type(self):
             raise RuntimeError("If you want to create a new tensor from another, use "
-                               "sourceTensor.detach() and then specify the requires_grad attribute.")
+                               "source_tensor.detach() and then specify the requires_grad attribute.")
         elif isinstance(data, np.generic):
             data = np.array(data)
 
@@ -128,7 +128,7 @@ class Tensor:
             self._grad = new_grad
             return  # it's ok if requires_grad=False
 
-        if type(new_grad) != type(self):
+        if type(new_grad) is not type(self):
             raise TypeError(f"Assigned grad expected to be a Tensor or None "
                             f"but got grad of '{type(new_grad).__name__}'.")
         elif id(new_grad) == id(self):
@@ -322,32 +322,32 @@ class Tensor:
     # =================================================== Comparison ===================================================
 
     def __lt__(self, other: Operand) -> np.ndarray:
-        if type(other) == type(self):
+        if type(other) is type(self):
             other = other._data
         return self._data < other
 
     def __gt__(self, other: Operand) -> np.ndarray:
-        if type(other) == type(self):
+        if type(other) is type(self):
             other = other._data
         return self._data > other
 
     def __le__(self, other: Operand) -> np.ndarray:
-        if type(other) == type(self):
+        if type(other) is type(self):
             other = other._data
         return self._data <= other
 
     def __ge__(self, other: Operand) -> np.ndarray:
-        if type(other) == type(self):
+        if type(other) is type(self):
             other = other._data
         return self._data >= other
 
     def __eq__(self, other: Operand) -> np.ndarray:
-        if type(other) == type(self):
+        if type(other) is type(self):
             other = other._data
         return self._data == other
 
     def __ne__(self, other: Operand) -> np.ndarray:
-        if type(other) == type(self):
+        if type(other) is type(self):
             other = other._data
         return self._data != other
 
@@ -368,9 +368,15 @@ class Tensor:
         else:
             return self._data.item()
 
+    def numpy(self, *, copy: bool = False) -> np.ndarray:
+        if copy:
+            return self._data.copy()
+        else:
+            return self._data
+
     def detach(self) -> Tensor:
         # unlike torch creates a copy that does not share the same storage with the source tensor
-        return tensor(self._data.copy())
+        return tensor(self.numpy(copy=True))
 
     def clone(self) -> Tensor:
         return func._clone(self)
@@ -407,10 +413,10 @@ class Tensor:
 
         # engine
         self._grad_fn._lock = 1
-        temp = self._grad_fn
+        grad_fn = self._grad_fn
 
         self._grad_fn.propagate(gradient._data)
-        check_locks(temp)
+        check_locks(grad_fn)
 
 
 Operand = Scalar | np.ndarray | Tensor

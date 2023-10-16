@@ -12,7 +12,7 @@ def obj_name(obj: typing.Any) -> str:
     return str(id(obj))
 
 
-class CompGraph(Digraph):  # TODO: examples (plus no_grad)
+class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
     def __init__(self, *,
                  leaf_color: str = '#7ba763',
                  leaf_fillcolor: str = '#d1e4cf',
@@ -111,8 +111,8 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad)
 
     def _hook(self, builder: typing.Callable) -> typing.Callable:
         @wraps(builder)
-        def construct(*args) -> Tensor:
-            output_tensor = builder(*args)
+        def construct(*args, **kwargs) -> Tensor:
+            output_tensor = builder(*args, **kwargs)
 
             operation_subgraph = Digraph(f'operation_{self._level}', graph_attr=dict(rank='same'))
             operands_subgraph = Digraph(f'operands_{self._level}', graph_attr=dict(rank='same'))
@@ -129,7 +129,7 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad)
 
             self.edge(op_name, ot_name, color=op_cfg.color)
 
-            for arg in args:
+            for arg in (*args, *kwargs.values()):
                 if not isinstance(arg, Tensor):
                     continue
 

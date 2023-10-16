@@ -1,6 +1,4 @@
-import pytest
-
-import kittygrad as kitty
+from test.conftest import *
 
 
 def test_comp_graph():

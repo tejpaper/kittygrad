@@ -1,4 +1,4 @@
-from conftest import *
+from test.conftest import *
 
 
 def test_no_grad(compare):

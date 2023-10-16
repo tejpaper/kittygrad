@@ -1,4 +1,4 @@
-from conftest import *
+from test.conftest import *
 
 
 @pytest.mark.parametrize(

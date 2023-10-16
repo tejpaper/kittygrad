@@ -4,8 +4,9 @@ import torch
 
 import kittygrad as kitty
 
+RANDOM_SEED = 42
 
-# TODO: structure tests
+
 class Comparison:
     TYPES_MAPPING = {
         kitty.float16.__name__: torch.float16,
@@ -84,6 +85,6 @@ def init_tensors(shapes: list[kitty.Size], dtypes: list[np.dtype] = None, squeez
     if squeeze_dims is None:
         squeeze_dims = tuple()
 
-    np.random.seed(42)
+    np.random.seed(RANDOM_SEED)
     data = [np.random.randn(*shape).astype(dtype).squeeze(squeeze_dims) for shape, dtype in zip(shapes, dtypes)]
     return map(lambda lib: map(lambda d: lib.tensor(d, requires_grad=True), data), (kitty, torch))

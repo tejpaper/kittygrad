@@ -42,7 +42,7 @@ class AccumulateGrad(BackwardAccess):  # ag short
 
 class FnBackward(BackwardAccess, abc.ABC):  # fn short
     def __init__(self,
-                 ctx: DotDict[str, list[typing.Any] | Tensor],
+                 ctx: DotDict[str, typing.Any],
                  next_functions: list[FnBackward | None]) -> None:
         self._ctx = ctx
         self._next_functions = next_functions
@@ -64,7 +64,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
     @abc.abstractmethod
     def _propagate(self) -> None:
-        raise NotImplementedError  # self._grad can be changed here as there is a hook before it
+        raise NotImplementedError
 
     def _inplace_modification_check(self) -> None:
         if self._ctx.out.version != self._versions.out:
@@ -87,7 +87,7 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         # retain_grad hook
         if self._ctx.out.retains_grad:
             if self._ctx.out.version == self._versions.out:
-                self._ctx.out._grad = self._grad.copy()  # no ref to avoid bugs
+                self._ctx.out._grad = self._grad.copy()
             else:
                 warnings.warn("An attempt to assign a gradient to a tensor with retains_grad=True "
                               "and modified by inplace operation was noticed.")
@@ -108,9 +108,9 @@ class BackwardGraph:
         self.node = node
         update_wrapper(self, function)
 
-    def __call__(self, *args) -> Tensor:
+    def __call__(self, *args, **kwargs) -> Tensor:
         ctx = DotDict(saved_tensors=[])
-        out = self.function(*args, ctx)
+        out = self.function(ctx, *args, **kwargs)
 
         if not out.requires_grad:
             return out
@@ -120,7 +120,7 @@ class BackwardGraph:
         ctx.out = out
         next_functions = []
 
-        for arg in args:
+        for arg in (*args, *kwargs.values()):
             if not isinstance(arg, tsr.Tensor):
                 continue
 
@@ -134,37 +134,37 @@ class BackwardGraph:
         out._grad_fn = self.node(ctx=ctx, next_functions=next_functions)
         return out
 
-    @staticmethod
-    def mount(node: typing.Type[FnBackward]) -> typing.Callable:
+    @classmethod
+    def mount(cls, node: typing.Type[FnBackward]) -> typing.Callable:
         def backward_graph(function: typing.Callable) -> typing.Callable:
             @wraps(function)
-            def apply_hooks(*args) -> Tensor:
+            def apply_hooks(*args, **kwargs) -> Tensor:
 
-                if BackwardGraph.disabled:
+                if cls.disabled:
                     dummy_ctx = DotDict(saved_tensors=[])
-                    return function(*args, dummy_ctx)
+                    return function(dummy_ctx, *args, **kwargs)
 
                 wrapped_func = function
 
-                for hook in BackwardGraph.pre_builder_hooks.values():
+                for hook in cls.pre_builder_hooks.values():
                     wrapped_func = hook(wrapped_func)
 
-                wrapped_func = BackwardGraph(wrapped_func, node)
+                wrapped_func = cls(wrapped_func, node)
 
-                for hook in BackwardGraph.post_builder_hooks.values():
+                for hook in cls.post_builder_hooks.values():
                     wrapped_func = hook(wrapped_func)
 
-                return wrapped_func(*args)
+                return wrapped_func(*args, **kwargs)
             return apply_hooks
         return backward_graph
 
-    @staticmethod
-    def disable(function: typing.Callable) -> typing.Callable:
+    @classmethod
+    def disable(cls, function: typing.Callable) -> typing.Callable:
         @wraps(function)
         def decorated(*args, **kwargs) -> typing.Any:
-            BackwardGraph.disabled = True
+            cls.disabled = True
             output = function(*args, **kwargs)
-            BackwardGraph.disabled = False
+            cls.disabled = False
 
             return output
         return decorated

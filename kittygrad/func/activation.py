@@ -11,7 +11,7 @@ from ..utils import *
 
 
 @BackwardGraph.mount(SigmoidBackward)
-def _sigmoid(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
+def _sigmoid(_ctx: DotDict, tensor: Tensor) -> Tensor:
     return tsr.tensor(
         data=1 / (1 + np.exp(-tensor._data)),
         dtype=tensor.dtype,
@@ -20,7 +20,7 @@ def _sigmoid(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
 
 
 @BackwardGraph.mount(TanhBackward)
-def _tanh(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
+def _tanh(_ctx: DotDict, tensor: Tensor) -> Tensor:
     exp = np.exp(2 * tensor._data)
     return tsr.tensor(
         data=(exp - 1) / (exp + 1),
@@ -30,7 +30,7 @@ def _tanh(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
 
 
 @BackwardGraph.mount(ReluBackward)
-def _relu(tensor: Tensor, _ctx: DotDict[str, list]) -> Tensor:
+def _relu(_ctx: DotDict, tensor: Tensor) -> Tensor:
     return tsr.tensor(
         data=tensor._data * (tensor._data > 0),
         dtype=tensor.dtype,
