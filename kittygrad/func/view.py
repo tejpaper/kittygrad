@@ -110,7 +110,7 @@ def broadcast_to(input: Tensor, shape: Size) -> Tensor:  # noqa: torch-like API
 
         expanded_dims.append(i)
 
-    for i in range(len(new_shape) - len(old_shape), len(new_shape)):
+    for i in range(offset, len(new_shape)):
         if new_shape[i] == -1:
             new_shape[i] = old_shape[i - offset]
         elif new_shape[i] != old_shape[i - offset]:
@@ -133,7 +133,6 @@ def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
     return [broadcast_to(t, result_shape) for t in tensors]
 
 
-@view
 @BackwardGraph.mount(IndexBackward)
 def _index(ctx: DotDict, tensor: Tensor, key) -> Tensor:
     if not isinstance(key, tuple):
@@ -147,6 +146,11 @@ def _index(ctx: DotDict, tensor: Tensor, key) -> Tensor:
         data=tensor._data[*key],
         requires_grad=tensor.requires_grad,
     )
+
+
+@view
+def _index_view(*args, **kwargs) -> Tensor:
+    return _index(*args, **kwargs)
 
 
 @inplace(promotion=False, broadcasting=False)

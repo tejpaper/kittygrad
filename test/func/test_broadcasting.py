@@ -38,3 +38,15 @@ def test_broadcasting(shapes, dtypes, compare):
     kitty_c_view.sum().backward()
     torch_c_view.sum().backward()
     assert compare(kitty_c.grad, torch_c.grad)
+
+    kitty_a.grad = None
+    torch_a.grad = None
+
+    # kwargs input
+    kitty_a_view = kitty.broadcast_to(input=kitty_a, shape=(-1, 3, -1))
+    torch_a_view = torch.broadcast_to(torch_a, (-1, 3, -1))
+    assert compare(kitty_a_view, torch_a_view)
+
+    kitty_a_view.sum().backward()
+    torch_a_view.sum().backward()
+    assert compare(kitty_a.grad, torch_a.grad)

@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+import inspect
 from functools import wraps
 
 import kittygrad.tensor as tsr
 import kittygrad.func as func
 from ..utils import *
+
+
+def normalize_args(src_function: typing.Callable) -> typing.Callable:
+    signature = inspect.signature(src_function)
+
+    def handler_decorator(function: typing.Callable) -> typing.Callable:
+        @wraps(src_function)
+        def handler(*args, **kwargs) -> typing.Any:
+            bound_arguments = signature.bind(*args, **kwargs)
+
+            return function(*bound_arguments.args, **bound_arguments.kwargs)
+        return handler
+    return handler_decorator
 
 
 def scalar2tensor(scalar: Scalar,
@@ -61,8 +75,8 @@ def autocast(op_symbol: str = None,
         prohibited_types = []
 
     def handler_decorator(function: typing.Callable) -> typing.Callable:
-        @wraps(function)
-        def handler(tensor: Tensor, other: Operand, *args, **kwargs) -> Tensor:
+        @normalize_args(function)
+        def handler(tensor, other, *args, **kwargs) -> Tensor:
 
             if isinstance(other, Scalar) and Scalar not in prohibited_types:
                 other = scalar2tensor(other, tensor, promotion, broadcasting)
@@ -130,11 +144,12 @@ def inplace(promotion: bool = True, broadcasting: bool = True, **autocast_kwargs
 
 
 def view(function: typing.Callable) -> typing.Callable:
-    @wraps(function)
-    def handler(tensor: Tensor, *args, **kwargs) -> Tensor:
+    @normalize_args(function)
+    def handler(tensor, *args, **kwargs) -> Tensor:
+
         new_view = function(tensor, *args, **kwargs)
         assert new_view is tensor or new_view._data.base is not None  # TODO: remove me after a bunch of tests
         new_view._version = tensor._version
-        return new_view
 
+        return new_view
     return handler

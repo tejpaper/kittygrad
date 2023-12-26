@@ -355,9 +355,8 @@ def matmul(input: Tensor, other: np.ndarray | Tensor) -> Tensor:  # noqa: torch-
     elif input.ndim == 2 and other.ndim == 1:
         return mv.__wrapped__(input, other)
 
+    # numpy exceptions are absolutely fine
     batch_dims = np.broadcast_shapes(input.shape[:-2], other.shape[:-2])
-
-    assert not (input.ndim == 1 and other.ndim == 1)  # TODO: remove me after a bunch of tests
 
     if input.ndim == 1:
         return bmm.__wrapped__(input.unsqueeze(-2).expand(*batch_dims, -1, -1),

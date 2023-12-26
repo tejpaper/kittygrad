@@ -9,6 +9,7 @@ from inflection import underscore
 
 from kittygrad.tensor import tensor
 from .engine import FnBackward, BackwardGraph
+from ..func.handler import normalize_args
 from ..utils import *
 
 
@@ -65,21 +66,39 @@ class FunctionMeta(abc.ABCMeta):
         if not forward or not backward:
             return super().__new__(mcs, name, bases, namespace)
         elif hasattr(forward, 'disables_grad'):
-            raise RuntimeError("There is no point in creating a Function class with gradient flow disabled. "
-                               "Use a standard function instead.")
+            raise RuntimeError("There is no point in creating a Function class with gradient "
+                               "flow permanently disabled. Use a standard function instead.")
         elif hasattr(backward, 'disables_grad'):
             warnings.warn("There is no need to explicitly disable gradient flow in the backward method. "
                           "This happens implicitly.")
 
-        forward = BackwardGraph.disable(forward)
-        backward = BackwardGraph.disable(backward)
+        backward = mcs.integrate_backward(backward, output_version_check)
+        backward_node_cls = type(f'{name}Backward', (FnBackward,), dict(_propagate=backward))
+        namespace['__call__'] = mcs.integrate_forward(forward, name, backward_node_cls)
 
-        def _forward(ctx: DotDict, self: typing.Self[Function], *args, **kwargs) -> Tensor:
+        return super().__new__(mcs, name, bases, namespace)
+
+    @staticmethod
+    def integrate_forward(forward: typing.Callable, name: str,
+                          backward_node_cls: typing.Type[FnBackward]) -> typing.Callable:
+        forward = BackwardGraph.disable(forward)
+
+        def integrated_forward(ctx: DotDict, self: typing.Self[Function], *args, **kwargs) -> Tensor:
             ctx.custom_function = self
             self.ctx = ctx
             return forward(self, *args, **kwargs)
 
-        def _backward(self: typing.Self[FnBackward]) -> None:
+        integrated_forward.__name__ = f'_{underscore(name)}'
+        integrated_forward = BackwardGraph.mount(backward_node_cls)(integrated_forward)
+        integrated_forward = normalize_args(forward)(integrated_forward)
+
+        return integrated_forward
+
+    @staticmethod
+    def integrate_backward(backward: typing.Callable, output_version_check: bool) -> typing.Callable:
+        backward = BackwardGraph.disable(backward)
+
+        def integrated_backward(self: typing.Self[FnBackward]) -> None:
             custom_function = self._ctx.custom_function
 
             if output_version_check:
@@ -92,14 +111,10 @@ class FunctionMeta(abc.ABCMeta):
                 prev_grads = (prev_grads,)
 
             for next_fn, grad in zip(self._next_functions, prev_grads):
-                if grad is not None:
+                if next_fn is not None and grad is not None:
                     next_fn.propagate(grad._data)
 
-        _forward.__name__ = f'_{underscore(name)}'
-        backward_node_cls = type(name + 'Backward', (FnBackward,), dict(_propagate=_backward))
-        namespace['__call__'] = BackwardGraph.mount(backward_node_cls)(_forward)
-
-        return super().__new__(mcs, name, bases, namespace)
+        return integrated_backward
 
 
 class Function(metaclass=FunctionMeta):

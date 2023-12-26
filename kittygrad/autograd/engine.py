@@ -120,7 +120,10 @@ class BackwardGraph:
         ctx.out = out
         next_functions = []
 
-        for arg in (*args, *kwargs.values()):
+        # TODO: remove me after a bunch of tests
+        assert all(map(lambda v: not isinstance(v, tsr.Tensor), kwargs.values()))
+
+        for arg in args:
             if not isinstance(arg, tsr.Tensor):
                 continue
 

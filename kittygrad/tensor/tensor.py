@@ -38,7 +38,7 @@ class Tensor:
                 warnings.warn(f"Passed NumPy array has an unsupported data type '{data.dtype}'. "
                               f"Created a copy based on '{DEFAULT_DTYPE.__name__}' dtype.")
             self._data = np.array(data, DEFAULT_DTYPE)
-        elif not is_ndarray and supported_dtype:
+        elif not is_ndarray:
             self._data = np.array(data, dtype)
         else:
             self._data = data.astype(dtype, copy=False)
@@ -308,13 +308,13 @@ class Tensor:
     def __getitem__(self, key) -> Tensor:
         if isinstance(key, tuple):
             for ind in key:
-                if type(ind) not in {int, slice, EllipsisType, NoneType}:
-                    return func._index.__wrapped__(self, key)
+                if type(ind) not in (int, slice, EllipsisType, NoneType):
+                    return func._index(self, key)
 
         elif isinstance(key, list | np.ndarray):
-            return func._index.__wrapped__(self, key)
+            return func._index(self, key)
 
-        return func._index(self, key)
+        return func._index_view(self, key)
 
     def __setitem__(self, key, value: Operand) -> None:
         return func._index_put(self, value, key)

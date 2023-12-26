@@ -38,5 +38,6 @@ from .view import (
     broadcast_to,
     broadcast_tensors,
     _index,
+    _index_view,
     _index_put,
 )

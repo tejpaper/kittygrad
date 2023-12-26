@@ -6,7 +6,6 @@ def test_tensor_methods():
     assert tensor.dtype == kitty.double
 
     detached = tensor.detach()
-    # TODO: .numpy()
     detached[1] = 1000
 
     assert tensor is not detached
