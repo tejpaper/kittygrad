@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import abc
+import typing
 import warnings
 from functools import update_wrapper, wraps
 
-import kittygrad.tensor as tsr
-from ..utils import *
+import numpy as np
+
+import kittygrad.tensor.tensor as tsr
+from kittygrad.utils.classes import DotDict
+from kittygrad.utils.constants import NP_OPS_CONFIG
+from kittygrad.utils.exceptions import (
+    inplace_modification_error,
+    redundant_backward_error,
+)
 
 
 class BackwardAccess(abc.ABC):  # ba short

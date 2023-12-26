@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import inspect
+import typing
 from functools import wraps
 
-import kittygrad.tensor as tsr
-import kittygrad.func as func
-from ..utils import *
+import kittygrad.tensor.tensor as tsr
+from kittygrad.utils.constants import *
 
 
 def normalize_args(src_function: typing.Callable) -> typing.Callable:
@@ -45,7 +45,7 @@ def array2tensor(array: np.ndarray,
         casted = tsr.tensor(array)
 
     if broadcasting:
-        casted, tensor = func.broadcast_tensors(casted, tensor)
+        casted, tensor = tsr.view.broadcast_tensors(casted, tensor)
 
     return casted, tensor
 
@@ -60,7 +60,7 @@ def tensor2tensor(tensor: Tensor,
         other = other.type(dtype)
 
     if broadcasting:
-        tensor, other = func.broadcast_tensors(tensor, other)
+        tensor, other = tsr.view.broadcast_tensors(tensor, other)
 
     return tensor, other
 
@@ -143,7 +143,7 @@ def inplace(promotion: bool = True, broadcasting: bool = True, **autocast_kwargs
     return handler_decorator
 
 
-def view(function: typing.Callable) -> typing.Callable:
+def share(function: typing.Callable) -> typing.Callable:
     @normalize_args(function)
     def handler(tensor, *args, **kwargs) -> Tensor:
 

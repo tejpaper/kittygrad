@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import typing
 from functools import wraps
+
 from graphviz import Digraph
 
 import kittygrad.autograd.engine as engine
-from kittygrad.tensor import Tensor
-from ..utils import *
+from kittygrad.tensor.tensor import Tensor
+from kittygrad.utils.classes import DotDict
 
 
 def obj_name(obj: typing.Any) -> str:

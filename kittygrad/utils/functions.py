@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 from collections.abc import Iterable
 
-from .constants import *
+from kittygrad.utils.constants import *
 
 manual_seed = np.random.seed
 

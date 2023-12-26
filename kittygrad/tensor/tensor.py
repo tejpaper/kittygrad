@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import typing
 import warnings
 from ctypes import c_int64 as mutable_int
 from types import EllipsisType, NoneType
 
-import kittygrad.func as func
-from ..autograd.engine import FnBackward, check_locks
-from ..func.handler import autocast, inplace, view
-from ..utils import *
+from kittygrad.autograd.engine import FnBackward, check_locks
+from kittygrad.func import activation, ops, view
+from kittygrad.func.handler import autocast, inplace, share
+from kittygrad.utils.constants import *
+from kittygrad.utils.exceptions import redundant_backward_error
+from kittygrad.utils.functions import flatten
 
 
 class Tensor:
@@ -168,119 +171,119 @@ class Tensor:
         return self
 
     def __neg__(self) -> Tensor:
-        return func._neg(self)
+        return ops._neg(self)
 
     def __abs__(self) -> Tensor:
-        return func._abs(self)
+        return ops._abs(self)
 
     def abs(self) -> Tensor:
-        return func._abs(self)
+        return ops._abs(self)
 
     def exp(self) -> Tensor:
-        return func._exp(self)
+        return ops._exp(self)
 
     def log(self) -> Tensor:
-        return func._log(self)
+        return ops._log(self)
 
     def sigmoid(self) -> Tensor:
-        return func._sigmoid(self)
+        return activation._sigmoid(self)
 
     def tanh(self) -> Tensor:
-        return func._tanh(self)
+        return activation._tanh(self)
 
     def relu(self) -> Tensor:
-        return func._relu(self)
+        return activation._relu(self)
 
     @autocast(op_symbol='+')
     def __add__(self, other: Operand) -> Tensor:
-        return func._add(self, other)
+        return ops._add(self, other)
 
     @autocast(op_symbol='+', reverse=True)
     def __radd__(self, other: Operand) -> Tensor:
-        return func._add(self, other)
+        return ops._add(self, other)
 
     @autocast(op_symbol='-')
     def __sub__(self, other: Operand) -> Tensor:
-        return func._sub(self, other)
+        return ops._sub(self, other)
 
     @autocast(op_symbol='-', reverse=True)
     def __rsub__(self, other: Operand) -> Tensor:
-        return func._sub(other, self)
+        return ops._sub(other, self)
 
     @autocast(op_symbol='*')
     def __mul__(self, other: Operand) -> Tensor:
-        return func._mul(self, other)
+        return ops._mul(self, other)
 
     @autocast(op_symbol='*', reverse=True)
     def __rmul__(self, other: Operand) -> Tensor:
-        return func._mul(self, other)
+        return ops._mul(self, other)
 
     @autocast(op_symbol='/')
     def __truediv__(self, other: Operand) -> Tensor:
-        return func._div(self, other)
+        return ops._div(self, other)
 
     @autocast(op_symbol='/', reverse=True)
     def __rtruediv__(self, other: Operand) -> Tensor:
-        return func._div(other, self)
+        return ops._div(other, self)
 
     @autocast(op_symbol='**')
     def __pow__(self, power: Operand) -> Tensor:
-        return func._pow(self, power)
+        return ops._pow(self, power)
 
     @autocast(op_symbol='**', reverse=True)
     def __rpow__(self, power: Operand) -> Tensor:
-        return func._pow(power, self)
+        return ops._pow(power, self)
 
     def sum(self, dim: int | Size | None = None, keepdim: bool = False) -> Tensor:
-        return func._sum(self, dim, keepdim)
+        return ops._sum(self, dim, keepdim)
 
     def mean(self, dim: int | Size | None = None, keepdim: bool = False) -> Tensor:
-        return func._mean(self, dim, keepdim)
+        return ops._mean(self, dim, keepdim)
 
     def var(self, dim: int | Size | None = None, correction: int = 1, keepdim: bool = False) -> Tensor:
-        return func._var(self, dim, correction, keepdim)
+        return ops._var(self, dim, correction, keepdim)
 
     def std(self, dim: int | Size | None = None, correction: int = 1, keepdim: bool = False) -> Tensor:
-        return func._std(self, dim, correction, keepdim)
+        return ops._std(self, dim, correction, keepdim)
 
     @autocast(op_symbol='@', broadcasting=False, prohibited_types=[Scalar])
     def __matmul__(self, other: np.ndarray | Tensor) -> Tensor:
-        return func.matmul.__wrapped__(self, other)
+        return ops.matmul.__wrapped__(self, other)
 
     @autocast(op_symbol='@', reverse=True, broadcasting=False, prohibited_types=[Scalar])
     def __rmatmul__(self, other: np.ndarray | Tensor) -> Tensor:
-        return func.matmul.__wrapped__(other, self)
+        return ops.matmul.__wrapped__(other, self)
 
     # ================================================== Inplace Func ==================================================
 
     @inplace(op_symbol='+=')
     def __iadd__(self, other: Operand) -> Tensor:
-        return func._iadd(self, other)
+        return ops._iadd(self, other)
 
     @inplace(op_symbol='-=')
     def __isub__(self, other: Operand) -> Tensor:
-        return func._isub(self, other)
+        return ops._isub(self, other)
 
     @inplace(op_symbol='*=')
     def __imul__(self, other: Operand) -> Tensor:
-        return func._imul(self, other)
+        return ops._imul(self, other)
 
     @inplace(op_symbol='/=')
     def __itruediv__(self, other: Operand) -> Tensor:
-        return func._idiv(self, other)
+        return ops._idiv(self, other)
 
     @inplace(op_symbol='**=')
     def __ipow__(self, other: Operand) -> Tensor:
-        return func._ipow(self, other)
+        return ops._ipow(self, other)
 
     def __imatmul__(self, other: np.ndarray | Tensor) -> typing.NoReturn:
         raise NotImplementedError("Inplace matrix multiplication is not implemented.")
 
     # ====================================================== View ======================================================
 
-    @view
+    @share
     def transpose(self, dim0: int, dim1: int) -> Tensor:
-        return func._transpose(self, dim0, dim1)
+        return view._transpose(self, dim0, dim1)
 
     @property
     def mT(self) -> Tensor:  # noqa: torch-like API
@@ -290,34 +293,34 @@ class Tensor:
         else:
             return self.transpose(-2, -1)
 
-    @view
+    @share
     def permute(self, dims: Size) -> Tensor:
-        return func._permute(self, dims)
+        return view._permute(self, dims)
 
-    @view
+    @share
     def squeeze(self, dim: int | Size | None = None) -> Tensor:
-        return func._squeeze(self, dim)
+        return view._squeeze(self, dim)
 
-    @view
+    @share
     def unsqueeze(self, dim: int | Size) -> Tensor:
-        return func._unsqueeze(self, dim)
+        return view._unsqueeze(self, dim)
 
     def expand(self, *sizes: int) -> Tensor:
-        return func.broadcast_to(self, sizes)
+        return view.broadcast_to(self, sizes)
 
     def __getitem__(self, key) -> Tensor:
         if isinstance(key, tuple):
             for ind in key:
                 if type(ind) not in (int, slice, EllipsisType, NoneType):
-                    return func._index(self, key)
+                    return view._index(self, key)
 
         elif isinstance(key, list | np.ndarray):
-            return func._index(self, key)
+            return view._index(self, key)
 
-        return func._index_view(self, key)
+        return view._index_view(self, key)
 
     def __setitem__(self, key, value: Operand) -> None:
-        return func._index_put(self, value, key)
+        return view._index_put(self, value, key)
 
     # =================================================== Comparison ===================================================
 
@@ -355,7 +358,7 @@ class Tensor:
 
     def type(self, dtype: type | np.dtype) -> Tensor:
         if dtype != self.dtype:
-            return func._type(self, dtype)
+            return ops._type(self, dtype)
         else:
             return self
 
@@ -379,7 +382,7 @@ class Tensor:
         return tensor(self.numpy(copy=True))
 
     def clone(self) -> Tensor:
-        return func._clone(self)
+        return ops._clone(self)
 
     def retain_grad(self) -> None:
         if not self._requires_grad:

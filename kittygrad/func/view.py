@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import kittygrad.tensor as tsr
-from ..autograd.engine import BackwardGraph
-from ..autograd.view import (
+import numpy as np
+
+import kittygrad.tensor.tensor as tsr
+from kittygrad.autograd.engine import BackwardGraph
+from kittygrad.autograd.view import (
     TransposeBackward,
     PermuteBackward,
     SqueezeBackward,
@@ -11,8 +13,10 @@ from ..autograd.view import (
     IndexBackward,
     IndexPutBackward,
 )
-from .handler import inplace, view
-from ..utils import *
+from kittygrad.func.handler import inplace, share
+from kittygrad.utils.classes import DotDict
+from kittygrad.utils.constants import Size
+from kittygrad.utils.functions import check_dim, check_dims
 
 
 @BackwardGraph.mount(TransposeBackward)
@@ -91,7 +95,7 @@ def _expand(ctx: DotDict, tensor: Tensor, shape: Size, expanded_dims: Size, offs
     )
 
 
-@view
+@share
 def broadcast_to(input: Tensor, shape: Size) -> Tensor:  # noqa: torch-like API
     for dim in shape:
         if dim <= 0 and dim != -1:
@@ -148,7 +152,7 @@ def _index(ctx: DotDict, tensor: Tensor, key) -> Tensor:
     )
 
 
-@view
+@share
 def _index_view(*args, **kwargs) -> Tensor:
     return _index(*args, **kwargs)
 

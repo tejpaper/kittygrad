@@ -1,4 +1,7 @@
-from .tensor import *
+import numpy as np
+
+from kittygrad.tensor.tensor import Tensor, tensor
+from kittygrad.utils.constants import Size, DEFAULT_DTYPE
 
 
 def rand(*size: Size,

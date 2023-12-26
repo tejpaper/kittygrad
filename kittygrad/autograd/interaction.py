@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import abc
+import typing
 import warnings
+from collections.abc import Iterable
 from contextlib import nullcontext
 from functools import wraps
 
 from inflection import underscore
 
-from kittygrad.tensor import tensor
-from .engine import FnBackward, BackwardGraph
-from ..func.handler import normalize_args
-from ..utils import *
+from kittygrad.autograd.engine import FnBackward, BackwardGraph
+from kittygrad.func.handler import normalize_args
+from kittygrad.tensor.tensor import tensor
+from kittygrad.utils.classes import DotDict
 
 
 class no_grad:

@@ -1,4 +1,4 @@
-from kittygrad.utils import DEFAULT_DTYPE
+from kittygrad.utils.constants import DEFAULT_DTYPE
 from test.conftest import *
 
 

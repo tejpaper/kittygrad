@@ -1,5 +1,7 @@
-from .engine import FnBackward
-from ..utils import *
+import numpy as np
+
+from kittygrad.autograd.engine import FnBackward
+from kittygrad.utils.functions import inv_permutation
 
 
 class TransposeBackward(FnBackward):

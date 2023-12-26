@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import kittygrad.tensor as tsr
-from ..autograd.activation import (
+import numpy as np
+
+import kittygrad.tensor.tensor as tsr
+from kittygrad.autograd.activation import (
     SigmoidBackward,
     TanhBackward,
     ReluBackward,
 )
-from ..autograd.engine import BackwardGraph
-from ..utils import *
+from kittygrad.autograd.engine import BackwardGraph
+from kittygrad.utils.classes import DotDict
 
 
 @BackwardGraph.mount(SigmoidBackward)

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import kittygrad.tensor as tsr
-from ..autograd.engine import BackwardGraph
-from ..autograd.ops import (
+import kittygrad.tensor.tensor as tsr
+from kittygrad.autograd.engine import BackwardGraph
+from kittygrad.autograd.ops import (
     ToCopyBackward,
     CloneBackward,
     NegBackward,
@@ -26,8 +26,9 @@ from ..autograd.ops import (
     MvBackward,
     BmmBackward,
 )
-from .handler import autocast
-from ..utils import *
+from kittygrad.func.handler import autocast
+from kittygrad.utils.classes import DotDict
+from kittygrad.utils.functions import *
 
 
 @BackwardGraph.mount(ToCopyBackward)
