@@ -2,7 +2,8 @@ from kittygrad.tensor.tensor import Tensor, tensor
 from kittygrad.tensor.create import (
     rand, randn,
     ones, ones_like,
-    zeros, zeros_like)
+    zeros, zeros_like,
+    empty, empty_like)
 
 from kittygrad.autograd.interaction import no_grad, Function
 

@@ -99,6 +99,7 @@ def _add(_ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
 
 @BackwardGraph.mount(AddBackward)
 def _iadd(_ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
+    tensor._requires_grad |= other.requires_grad
     np.add(tensor._data, other._data, out=tensor._data, **NP_OPS_CONFIG)
     return tensor
 
@@ -114,6 +115,7 @@ def _sub(_ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
 
 @BackwardGraph.mount(SubBackward)
 def _isub(_ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
+    tensor._requires_grad |= other.requires_grad
     np.subtract(tensor._data, other._data, out=tensor._data, **NP_OPS_CONFIG)
     return tensor
 
@@ -133,6 +135,8 @@ def _mul(ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
 
 @BackwardGraph.mount(IMulBackward)
 def _imul(ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
+    tensor._requires_grad |= other.requires_grad
+
     ctx.saved_arrays = [
         tensor._data.copy() if other.requires_grad else None,
         other._data.copy() if tensor.requires_grad else None,
@@ -156,6 +160,8 @@ def _div(ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
 
 @BackwardGraph.mount(IDivBackward)
 def _idiv(ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
+    tensor._requires_grad |= other.requires_grad
+
     other_inv = np.divide(1, other._data, dtype=other.dtype)
 
     if tensor.requires_grad:
@@ -184,6 +190,8 @@ def _pow(ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
 
 @BackwardGraph.mount(IPowBackward)
 def _ipow(ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
+    tensor._requires_grad |= other.requires_grad
+
     if tensor.requires_grad:
         ctx.saved_arrays = [tensor._data.copy(), other._data.copy()]
 

@@ -227,4 +227,4 @@ def test_function(compare):
         mess(kitty_a, injection_type=1)
     assert str(msg.value) == "missing a required argument: 'injection_1'"
 
-    # TODO: ref to CompGraph example
+    # compatibility with CompGraph is demonstrated in examples/linear_regression.ipynb

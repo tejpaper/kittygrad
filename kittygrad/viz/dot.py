@@ -8,13 +8,14 @@ from graphviz import Digraph
 import kittygrad.autograd.engine as engine
 from kittygrad.tensor.tensor import Tensor
 from kittygrad.utils.classes import DotDict
+from kittygrad.utils.exceptions import truncated_graph_error
 
 
 def obj_name(obj: typing.Any) -> str:
     return str(id(obj))
 
 
-class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
+class CompGraph(Digraph):
     def __init__(self, *,
                  leaf_color: str = '#7ba763',
                  leaf_fillcolor: str = '#d1e4cf',
@@ -108,18 +109,16 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
 
     def _stash_check(self, ba_name: str) -> None:
         if ba_name not in self._stash:
-            raise RuntimeError("Visualization of the computational graph "
-                               "must be built starting from the leaves.")
+            truncated_graph_error()
 
     def _render_forward_pass(self, builder: typing.Callable, builder_args: tuple, builder_kwargs: dict,
                              output_tensor: Tensor,
                              operation_subgraph: Digraph,
                              operands_subgraph: Digraph,
-                             ) -> tuple[str, str]:
+                             ) -> None:
 
         ot_cfg = self._tensor_node_cfg(output_tensor)
         ot_name = ot_cfg.name
-        self.node(**ot_cfg)
 
         op_cfg = self._forward_node_cfg(builder, ot_cfg)
         op_name = op_cfg.name
@@ -127,7 +126,10 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
 
         self.edge(op_name, ot_name, color=op_cfg.color)
 
-        for arg in (*builder_args, *builder_kwargs.values()):
+        # TODO: remove me after a bunch of tests
+        assert all(map(lambda v: not isinstance(v, Tensor), builder_kwargs.values()))
+
+        for arg in builder_args:
             if not isinstance(arg, Tensor):
                 continue
 
@@ -147,9 +149,9 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
                 self._stash_check(locked_fn_name)
                 self.edge(it_name, locked_fn_name, constraint='false', style='invis')
 
-        return ot_name, op_name
+        self.node(**ot_cfg)
 
-    def _render_backward_pass(self, ot_name: str, op_name: str,
+    def _render_backward_pass(self,
                               output_tensor: Tensor,
                               operation_subgraph: Digraph,
                               operands_subgraph: Digraph,
@@ -163,12 +165,19 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
 
         self._stash[fn_name] = None  # makes _stash_check exception possible
 
+        ot_name = obj_name(output_tensor)
+        op_name = f'forward_{self._level}'
+
         self.edge(ot_name, fn_name, color=self.backward_color, constraint='false', style='dashed')
         self.edge(op_name, fn_name, style='invis', weight='2')
+
+        is_truncated = True
 
         for next_ba in output_tensor.grad_fn.next_functions:
             if next_ba is None:
                 continue
+
+            is_truncated = False
 
             ba_cfg = self._backward_node_cfg(next_ba)
             ba_name = ba_cfg.name
@@ -185,6 +194,9 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
 
             self.edge(fn_name, ba_name, color=self.backward_color, constraint='false')
 
+        if is_truncated:
+            truncated_graph_error()
+
     def _hook(self, builder: typing.Callable) -> typing.Callable:
         @wraps(builder)
         def construct(*args, **kwargs) -> Tensor:
@@ -194,14 +206,13 @@ class CompGraph(Digraph):  # TODO: examples (plus no_grad, Function)
             operands_subgraph = Digraph(f'operands_{self._level}', graph_attr=dict(rank='same'))
             self._level += 1
 
-            ot_name, op_name = self._render_forward_pass(
+            self._render_forward_pass(
                 builder, args, kwargs,
                 output_tensor,
                 operation_subgraph,
                 operands_subgraph,
             )
             self._render_backward_pass(
-                ot_name, op_name,
                 output_tensor,
                 operation_subgraph,
                 operands_subgraph,

@@ -24,7 +24,7 @@ class Comparison:
         self.exact = 0
         self.approximate = 0
         self.max_ratio = 0
-        self.ratios = list()
+        self.ratios = []
 
     def __call__(self, kitty_tensor: kitty.Tensor, torch_tensor: torch.Tensor) -> bool:
         for attr in ('requires_grad', 'is_leaf', 'retains_grad'):

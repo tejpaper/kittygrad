@@ -5,6 +5,7 @@ import typing
 from functools import wraps
 
 import kittygrad.tensor.tensor as tsr
+from kittygrad.autograd.engine import BackwardGraph
 from kittygrad.utils.constants import *
 
 
@@ -109,13 +110,14 @@ def inplace(promotion: bool = True, broadcasting: bool = True, **autocast_kwargs
         @autocast(**autocast_kwargs, promotion=False, broadcasting=False)
         def handler(tensor: Tensor, other: Tensor, *args, **kwargs) -> Tensor:
 
-            if tensor._is_leaf and tensor._requires_grad:
+            if tensor._is_leaf and tensor._requires_grad and not BackwardGraph.pre_builder_hooks.no_grad:
                 raise RuntimeError("A leaf Variable that requires grad is being used in an in-place operation.")
             elif not tensor._data.flags['WRITEABLE']:
                 raise RuntimeError("The inplace operation cannot be applied to a read-only tensor. If this "
                                    "tensor is a view of another, you can try to do the same operation with it.")
 
             src_tensor = tensor
+            requires_grad = tensor._requires_grad or other.requires_grad
 
             if promotion:
                 tensor, other = tensor2tensor(tensor, other, promotion=True, broadcasting=False)
@@ -131,8 +133,8 @@ def inplace(promotion: bool = True, broadcasting: bool = True, **autocast_kwargs
                     raise RuntimeError("Output with shape {} doesn't match the broadcast shape {}."
                                        .format(src_tensor.shape, tensor.shape))
 
-            tensor._requires_grad |= other.requires_grad
-            out = function(tensor, other, *args, **kwargs)
+            out = function(tensor, other, *args, **kwargs)  # out is tensor
+            out._requires_grad = requires_grad  # in case of no_grad
 
             tensor._version.value += 1
             if out.grad_fn is not None:

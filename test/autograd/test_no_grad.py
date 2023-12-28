@@ -43,6 +43,13 @@ def test_no_grad(compare):
 
     zero_grad()
 
+    # no_grad plus inplace
+    with kitty.no_grad(), torch.no_grad():
+        kitty_a += 2
+        torch_a += 2
+
+    assert compare(kitty_a, torch_a)
+
     # nested context managers
     with kitty.no_grad():
         kitty_c = kitty_a + kitty_b
