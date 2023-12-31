@@ -13,11 +13,11 @@ def test_tensor_init():
 
     with pytest.raises(TypeError) as msg:
         kitty.tensor(1, dtype=np.int64)
-    assert str(msg.value) == "Data type 'int64' is not supported."
+    assert str(msg.value) == f"Data type '{np.int64.__name__}' is not supported."
 
     with pytest.raises(TypeError) as msg:
         kitty.tensor(1, dtype=np.longlong)
-    assert str(msg.value) == "Data type 'longlong' is not supported."
+    assert str(msg.value) == f"Data type '{np.longlong.__name__}' is not supported."
 
     with pytest.raises(RuntimeError) as msg:
         kitty.tensor(kitty.tensor([1, 1]))

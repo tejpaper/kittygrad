@@ -1,3 +1,5 @@
+__version__ = '1.0.0-alpha'
+
 from kittygrad.tensor.tensor import Tensor, tensor
 from kittygrad.tensor.create import (
     rand, randn,

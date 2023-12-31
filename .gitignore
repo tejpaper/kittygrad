@@ -1,7 +1,7 @@
 .idea
 .ipynb_checkpoints
-extra
 **/__pycache__/
 test/.pytest_cache
+extra/note.txt
 main.ipynb
 main.py

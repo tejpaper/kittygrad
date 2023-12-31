@@ -20,4 +20,4 @@ def test_ops_exceptions():
 
     with pytest.raises(TypeError) as msg:
         kitty_a.type(np.int8)
-    assert str(msg.value) == "Data type 'int8' is not supported."
+    assert str(msg.value) == f"Data type '{np.int8.__name__}' is not supported."
