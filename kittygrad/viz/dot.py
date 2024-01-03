@@ -126,9 +126,6 @@ class CompGraph(Digraph):
 
         self.edge(op_name, ot_name, color=op_cfg.color)
 
-        # TODO: remove me after a bunch of tests
-        assert all(map(lambda v: not isinstance(v, Tensor), builder_kwargs.values()))
-
         for arg in builder_args:
             if not isinstance(arg, Tensor):
                 continue

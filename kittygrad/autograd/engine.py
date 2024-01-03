@@ -36,11 +36,6 @@ class AccumulateGrad(BackwardAccess):  # ag short
         self._tensor = tensor
 
     def propagate(self, grad: np.ndarray | np.generic) -> None:
-        # TODO: remove me after a bunch of tests
-        if self._tensor.shape != grad.shape:
-            raise RuntimeError(f"The size of tensor {self._tensor.shape} "
-                               f"must match the size of its gradient {grad.shape}.")
-
         if self._tensor._grad is None:
             self._tensor._grad = np.zeros_like(self._tensor._data)
 
@@ -79,7 +74,6 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
             inplace_modification_error()
 
     def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
-        assert id(self._grad) != id(prev_grad)  # TODO: remove me after a bunch of tests
         np.add(self._grad, prev_grad, out=self._grad, **NP_OPS_CONFIG)
         self._lock -= 1
 
@@ -127,9 +121,6 @@ class BackwardGraph:
 
         ctx.out = out
         next_functions = []
-
-        # TODO: remove me after a bunch of tests
-        assert all(map(lambda v: not isinstance(v, tsr.Tensor), kwargs.values()))
 
         for arg in args:
             if not isinstance(arg, tsr.Tensor):

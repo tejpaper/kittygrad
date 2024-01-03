@@ -148,9 +148,7 @@ def inplace(promotion: bool = True, broadcasting: bool = True, **autocast_kwargs
 def share(function: typing.Callable) -> typing.Callable:
     @normalize_args(function)
     def handler(tensor, *args, **kwargs) -> Tensor:
-
         new_view = function(tensor, *args, **kwargs)
-        assert new_view is tensor or new_view._data.base is not None  # TODO: remove me after a bunch of tests
         new_view._version = tensor._version
 
         return new_view

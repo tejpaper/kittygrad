@@ -53,7 +53,7 @@ def test_agg(shapes, dtypes, compare):
 
     # sum : dim is empty tuple
     kitty_b = kitty_a.sum(dim=())
-    torch_b = torch_a + 0  # TODO: ref [2]
+    torch_b = torch_a + 0
     assert compare(kitty_b, torch_b)
 
     kitty_b.backward(kitty.ones_like(kitty_b))

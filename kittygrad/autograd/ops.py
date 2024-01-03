@@ -34,7 +34,6 @@ class ExpBackward(FnBackward):
 
 class LogBackward(FnBackward):
     def _propagate(self) -> None:
-        # TODO: ref [1]
         # log(neg) == nan, but its gradient exists like in torch
         self._grad /= self._ctx.saved_tensors[0]._data
         self._next_functions[0].propagate(self._grad)
