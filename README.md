@@ -16,7 +16,6 @@
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#examples">Examples</a> •
-  <a href="#details">Details</a> •
   <a href="#license">License</a>
 </p>
 
