@@ -16,6 +16,12 @@ def obj_name(obj: typing.Any) -> str:
 
 
 class CompGraph(Digraph):
+    """
+    Context manager representing a computational graph for visualization purposes.
+
+    Extends the Digraph class to create a directed graph that visually models
+    the flow of computation without executing the operations.
+    """
     def __init__(self, *,
                  leaf_color: str = '#7ba763',
                  leaf_fillcolor: str = '#d1e4cf',
@@ -26,6 +32,38 @@ class CompGraph(Digraph):
                  backward_color: str = '#22709a',
                  backward_fillcolor: str = '#a9d8ee',
                  **digraph_kwargs) -> None:
+        """
+        Initialize the CompGraph for visualization.
+
+        Parameters
+        ----------
+        leaf_color : str, optional
+            Color for leaf nodes in the graph. Default is '#7ba763'.
+
+        leaf_fillcolor : str, optional
+            Fill color for leaf nodes in the graph. Default is '#d1e4cf'.
+
+        branch_color : str, optional
+            Color for branch nodes in the graph. Default is '#63473d'.
+
+        branch_fillcolor : str, optional
+            Fill color for branch nodes in the graph. Default is '#c5b9b7'.
+
+        dried_leaf_color : str, optional
+            Color for dried leaf nodes in the graph. Default is '#cdad56'.
+
+        dried_leaf_fillcolor : str, optional
+            Fill color for dried leaf nodes in the graph. Default is '#ffefc7'.
+
+        backward_color : str, optional
+            Color for backward pass nodes in the graph. Default is '#22709a'.
+
+        backward_fillcolor : str, optional
+            Fill color for backward pass nodes in the graph. Default is '#a9d8ee'.
+
+        **digraph_kwargs
+            Additional keyword arguments passed to the Digraph constructor.
+        """
 
         self.leaf_color = leaf_color
         self.leaf_fillcolor = leaf_fillcolor

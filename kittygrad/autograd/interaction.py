@@ -16,7 +16,60 @@ from kittygrad.utils.classes import DotDict
 
 
 class no_grad:
+    """
+    Class enabling the temporary suspension of gradient computation within a specified scope
+    or when decorating functions.
+    """
+
     def __new__(cls, orig_func: typing.Callable | None = None) -> typing.Callable | no_grad | nullcontext:
+        """
+        Context manager to temporarily disable gradient computation.
+
+        Parameters
+        ----------
+        orig_func : Callable or None, optional
+            The original function to be decorated. If provided, the function will be called
+            within the `no_grad` context, and its output tensor will have requires_grad set to False.
+
+        Returns
+        -------
+        Callable or no_grad or nullcontext
+            If `orig_func` is provided, returns the decorated function.
+            If `orig_func` is not provided, returns either a new instance of `no_grad`
+            or a null context in case of nesting.
+
+        Examples
+        --------
+        1. Using `no_grad` as a context manager:
+        ```python
+        import kittygrad as kitty
+
+        with kitty.no_grad():
+            # Code within this block will have gradient computation disabled.
+            result = some_function()
+        ```
+
+        2. Decorating a function with `no_grad`:
+        ```python
+        import kittygrad as kitty
+
+        @kitty.no_grad
+        def my_function():
+            # Code within this function will have gradient computation disabled.
+            return some_tensor_operation()
+        ```
+
+        3. Using `no_grad` as a null context when already in a `no_grad` block:
+        ```python
+        import kittygrad as kitty
+
+        with kitty.no_grad():
+            # Code within this block will have gradient computation disabled.
+            with kitty.no_grad():
+                # The second no_grad has no additional effect.
+                result = another_function()
+        ```
+        """
         if orig_func is not None:
             @wraps(orig_func)
             def decorated(*args, **kwargs) -> typing.Any:
@@ -120,6 +173,18 @@ class FunctionMeta(abc.ABCMeta):
 
 
 class Function(metaclass=FunctionMeta):
+    """
+    Base class for defining custom differentiable operations.
+
+    Subclasses must implement the `forward` and `backward` methods representing
+    the forward pass computation and the backward pass gradient computation, respectively.
+
+    Attributes
+    ----------
+    ctx : DotDict
+        A context dictionary for saving intermediate calculations in it for future backward pass.
+    """
+
     def __init__(self) -> None:
         self.ctx = DotDict(saved_tensors=[])  # placeholder
 
@@ -128,8 +193,34 @@ class Function(metaclass=FunctionMeta):
 
     @abc.abstractmethod
     def forward(self, *args, **kwargs) -> Tensor:
+        """
+        Abstract method. Perform the forward pass computation.
+
+        Parameters
+        ----------
+        *args, **kwargs
+            Arguments to be used in the forward pass.
+
+        Returns
+        -------
+        Tensor
+            Result of the forward pass computation.
+        """
         raise NotImplementedError
 
     @abc.abstractmethod
     def backward(self, grad_output: Tensor) -> Tensor | tuple[Tensor | None, ...]:
+        """
+        Abstract method. Perform the backward pass gradient computation.
+
+        Parameters
+        ----------
+        grad_output : Tensor
+            Gradient expected from the following operation.
+
+        Returns
+        -------
+        Tensor or tuple[Tensor or None, ...]
+            Gradient of the input tensors. The length of the tuple must match the number of input tensors.
+        """
         raise NotImplementedError

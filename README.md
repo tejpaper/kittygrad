@@ -21,7 +21,7 @@
 
 ## Description
 
-kittygrad is a pet project that offers a familiar toolkit for training neural networks, written entirely in Python using [NumPy](https://numpy.org/). The project has the goal of building a minimal foundation for implementing basic popular deep learning techniques. Potentially, for those passing by, kittygrad could be useful for understanding some of the details in this area of machine learning. The concept of dynamic computational graph on tensors is taken as a basis. For simplicity the API is maximally close to [PyTorch](https://pytorch.org/).
+kittygrad is a pet project that offers a familiar toolkit for training neural networks, written entirely in Python3.11 using [NumPy](https://numpy.org/). The project has the goal of building a minimal foundation for implementing basic popular deep learning techniques. Potentially, for those passing by, kittygrad could be useful for understanding some of the details in this area of machine learning. The concept of dynamic computational graph on tensors is taken as a basis. For simplicity the API is maximally close to [PyTorch](https://pytorch.org/).
 
 ## Features
 

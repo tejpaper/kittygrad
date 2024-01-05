@@ -97,6 +97,28 @@ def _expand(ctx: DotDict, tensor: Tensor, shape: Size, expanded_dims: Size, offs
 
 @share
 def broadcast_to(input: Tensor, shape: Size) -> Tensor:  # noqa: torch-like API
+    """
+    Broadcast the input tensor to the specified shape.
+
+    Parameters
+    ----------
+    input : Tensor
+        The input tensor to be broadcasted.
+
+    shape : Size
+        The desired shape for the broadcasted tensor.
+
+    Returns
+    -------
+    Tensor
+        A shared tensor resulting from broadcasting the input tensor to the specified shape.
+
+    Notes
+    -----
+    Broadcasting is the process of making tensors with different shapes compatible for element-wise
+    operations. This function broadcasts the input tensor to the specified shape, following the
+    rules similar to the `Tensor.expand` method.
+    """
     for dim in shape:
         if dim <= 0 and dim != -1:
             raise RuntimeError(f"The expanded size of the tensor ({dim}) isn't allowed.")
@@ -132,6 +154,19 @@ def broadcast_to(input: Tensor, shape: Size) -> Tensor:  # noqa: torch-like API
 
 
 def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
+    """
+    Broadcast a list of tensors to a common shape.
+
+    Parameters
+    ----------
+    *tensors : Tensor
+        Input tensors to be broadcasted.
+
+    Returns
+    -------
+    list[Tensor]
+        A list of tensors resulting from broadcasting the input tensors to a common shape.
+    """
     # numpy exceptions are absolutely fine
     result_shape = np.broadcast(*[t._data for t in tensors]).shape
     return [broadcast_to(t, result_shape) for t in tensors]

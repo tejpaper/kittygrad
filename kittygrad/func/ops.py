@@ -283,6 +283,22 @@ def _mm(ctx: DotDict, tensor: Tensor, other: Tensor) -> Tensor:
 
 @autocast(broadcasting=False, prohibited_types=[Scalar])
 def mm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like API
+    """
+    Perform matrix multiplication between two tensors.
+
+    Parameters
+    ----------
+    input : Tensor
+        The first input tensor.
+
+    mat2 : np.ndarray or Tensor
+        The second input tensor or NumPy array to be multiplied with the first tensor.
+
+    Returns
+    -------
+    Tensor
+        A new tensor resulting from the matrix multiplication.
+    """
     if input.ndim != 2 or mat2.ndim != 2:
         raise RuntimeError(f"2D tensors expected, but got {input.ndim}D and {mat2.ndim}D tensors.")
     elif input.shape[-1] != mat2.shape[0]:
@@ -299,6 +315,22 @@ def _dot(*args, **kwargs) -> Tensor:
 
 @autocast(broadcasting=False, prohibited_types=[Scalar])
 def dot(input: Tensor, other: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like API
+    """
+    Compute the dot product between two tensors.
+
+    Parameters
+    ----------
+    input : Tensor
+        The first input tensor.
+
+    other : np.ndarray or Tensor
+        The second input tensor or NumPy array for computing the dot product.
+
+    Returns
+    -------
+    Tensor
+        A new tensor resulting from the dot product operation.
+    """
     if input.ndim != 1 or other.ndim != 1:
         raise RuntimeError(f"1D tensors expected, but got {input.ndim}D and {other.ndim}D tensors.")
     elif input.nelement() != other.nelement():
@@ -316,6 +348,22 @@ def _mv(*args, **kwargs) -> Tensor:
 
 @autocast(broadcasting=False, prohibited_types=[Scalar])
 def mv(input: Tensor, vec: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like API
+    """
+    Perform matrix-vector multiplication.
+
+    Parameters
+    ----------
+    input : Tensor
+        The input matrix tensor.
+
+    vec : np.ndarray or Tensor
+        The input vector tensor or NumPy array to be multiplied with the matrix.
+
+    Returns
+    -------
+    Tensor
+        A new tensor resulting from the matrix-vector multiplication.
+    """
     if input.ndim != 2:
         raise RuntimeError(f"input must be a matrix, not a {input.ndim}D tensor.")
     elif vec.ndim != 1:
@@ -334,6 +382,23 @@ def _bmm(*args, **kwargs) -> Tensor:
 
 @autocast(broadcasting=False, prohibited_types=[Scalar])
 def bmm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like API
+    """
+    Batch matrix multiplication.
+
+    Parameters
+    ----------
+    input : Tensor
+        The first input tensor representing a batch of matrices.
+
+    mat2 : np.ndarray or Tensor
+        The second input tensor or NumPy array representing a batch of matrices to be multiplied
+        with the first batch.
+
+    Returns
+    -------
+    Tensor
+        A new tensor (batch of matrices) resulting from the batch matrix multiplication.
+    """
     input_batch_dims = input.shape[:-2]
     mat2_batch_dims = mat2.shape[:-2]
 
@@ -352,6 +417,38 @@ def bmm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like
 
 @autocast(broadcasting=False, prohibited_types=[Scalar])
 def matmul(input: Tensor, other: np.ndarray | Tensor) -> Tensor:  # noqa: torch-like API
+    """
+    Generalized matrix multiplication for tensors and NumPy arrays.
+
+    Parameters
+    ----------
+    input : Tensor
+        The first input tensor.
+
+    other : np.ndarray or Tensor
+        The second input tensor or NumPy array.
+
+    Returns
+    -------
+    Tensor
+        A new tensor resulting from the matrix multiplication.
+
+    Raises
+    ------
+    RuntimeError
+        If input tensors are scalars.
+
+    Notes
+    -----
+    This function handles matrix multiplication for tensors with different dimensions:
+    - If both input tensors are 1-dimensional, it performs a dot product.
+    - If both input tensors are 2-dimensional, it performs a matrix multiplication.
+    - If one input tensor is 1-dimensional and the other is 2-dimensional, it performs
+      a vector-matrix multiplication.
+    - If one input tensor is 2-dimensional and the other is 1-dimensional, it performs
+      a matrix-vector multiplication.
+    - For other cases, it performs batch matrix multiplication.
+    """
     if input.ndim == 0 or other.ndim == 0:
         raise RuntimeError("Input tensors must not be scalars.")
 
