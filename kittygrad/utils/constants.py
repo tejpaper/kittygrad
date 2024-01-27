@@ -20,3 +20,7 @@ REPR_PRECISION = 4
 REPR_SEPARATOR = ', '
 REPR_PREFIX = 'tensor('
 REPR_FLOATMODE = 'maxprec_equal'
+
+# module representation
+SUBMODULE_SEPARATOR = '.'
+SUBMODULE_INDENT = ' ' * 2

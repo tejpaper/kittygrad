@@ -27,12 +27,12 @@ class Comparison:
         self.ratios = []
 
     def __call__(self, kitty_tensor: kitty.Tensor, torch_tensor: torch.Tensor) -> bool:
-        for attr in ('requires_grad', 'is_leaf', 'retains_grad'):
-            attr_value_1 = getattr(kitty_tensor, attr)
-            attr_value_2 = getattr(torch_tensor, attr)
+        for attr_name in ('requires_grad', 'is_leaf', 'retains_grad'):
+            attr_value_1 = getattr(kitty_tensor, attr_name)
+            attr_value_2 = getattr(torch_tensor, attr_name)
 
             if attr_value_1 != attr_value_2:
-                print(f'\n{attr} attribute mismatch: {attr_value_1} != {attr_value_2}.')
+                print(f'\n{attr_name} attribute mismatch: {attr_value_1} != {attr_value_2}.')
                 return False
 
         if Comparison.TYPES_MAPPING[str(kitty_tensor.dtype)] != torch_tensor.dtype:

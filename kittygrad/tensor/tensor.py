@@ -167,7 +167,7 @@ class Tensor:
 
     # ====================================================== Func ======================================================
 
-    def __pos__(self) -> Tensor:
+    def __pos__(self) -> typing.Self:
         return self
 
     def __neg__(self) -> Tensor:
@@ -356,7 +356,7 @@ class Tensor:
 
     # ================================================== Interaction ===================================================
 
-    def type(self, dtype: type | np.dtype) -> Tensor:
+    def type(self, dtype: type | np.dtype) -> Tensor | typing.Self:
         if dtype != self.dtype:
             return ops._type(self, dtype)
         else:

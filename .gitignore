@@ -3,5 +3,6 @@
 **/__pycache__/
 test/.pytest_cache
 extra/note.txt
+extra/benchmarks
 main.ipynb
 main.py
