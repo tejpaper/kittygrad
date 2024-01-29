@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 
 from kittygrad.tensor.tensor import Tensor, tensor
@@ -30,7 +32,7 @@ def ones(*size: Size,
         requires_grad=requires_grad)
 
 
-def ones_like(input: Tensor,  # noqa: torch-like API
+def ones_like(input: Tensor | DummyTensor,  # noqa: torch-like API
               dtype: type | np.dtype | None = None,
               requires_grad: bool = False) -> Tensor:
     return tensor(
@@ -46,7 +48,7 @@ def zeros(*size: Size,
         requires_grad=requires_grad)
 
 
-def zeros_like(input: Tensor,  # noqa: torch-like API
+def zeros_like(input: Tensor | DummyTensor,  # noqa: torch-like API
                dtype: type | np.dtype | None = None,
                requires_grad: bool = False) -> Tensor:
     return tensor(
@@ -62,7 +64,7 @@ def empty(*size: Size,
         requires_grad=requires_grad)
 
 
-def empty_like(input: Tensor,  # noqa: torch-like API
+def empty_like(input: Tensor | DummyTensor,  # noqa: torch-like API
                dtype: type | np.dtype | None = None,
                requires_grad: bool = False) -> Tensor:
     return tensor(

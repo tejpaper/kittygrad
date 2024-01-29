@@ -195,7 +195,7 @@ class MvBackward(FnBackward):
         matrix_fn, vector_fn = self._next_functions
 
         if matrix_fn is not None:
-            matrix_fn.propagate(np.matmul(self._grad[..., np.newaxis], vector._data[np.newaxis, ...]))
+            matrix_fn.propagate(np.outer(self._grad, vector._data))
 
         if vector_fn is not None:
             vector_fn.propagate(np.matmul(matrix._data.T, self._grad))

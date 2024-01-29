@@ -8,7 +8,7 @@ def test_parameter(compare):
     assert repr(nn.Parameter(kitty_b)) == repr(torch.nn.Parameter(torch_b))
 
 
-class TestModule(nn.Module):
+class ModuleTest(nn.Module):
     def __init__(self, weight, bias):
         super().__init__()
 
@@ -33,14 +33,14 @@ class DummyModule1(nn.Module):
 
 class DummyModule2(nn.Module):
     def __init__(self):
-        self.submodule = TestModule(*kitty.empty(2))
+        self.submodule = ModuleTest(*kitty.empty(2))
         super().__init__()
 
     def forward(self, x):
         return x
 
 
-def test_module(monkeypatch):
+def test_module():
     # incorrect order of parameters initialization
     with pytest.raises(AttributeError) as msg:
         DummyModule1()
@@ -49,14 +49,14 @@ def test_module(monkeypatch):
     # incorrect order of submodules initialization
     with pytest.raises(AttributeError) as msg:
         DummyModule2()
-    assert str(msg.value) == "Cannot assign TestModule instance before Module.__init__() call."
+    assert str(msg.value) == "Cannot assign ModuleTest instance before Module.__init__() call."
 
     # trivial valid example
     (kitty_a, kitty_b, kitty_c), *_ = init_tensors([(2, 2, 3), (2, 3), (5, 2, 2, 3)])
-    module = TestModule(kitty_a, kitty_b)
+    module = ModuleTest(kitty_a, kitty_b)
 
     # characteristic
-    assert repr(module) == str(module) == 'TestModule()'
+    assert repr(module) == str(module) == 'ModuleTest()'
     total_params_num = kitty_a.nelement() + kitty_b.nelement()
     assert module.n_parameters() == total_params_num
     assert module.n_trainable_parameters() == kitty_a.nelement()

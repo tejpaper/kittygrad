@@ -5,7 +5,8 @@ import itertools
 import typing
 
 import kittygrad as kitty
-from kittygrad.utils.constants import SUBMODULE_SEPARATOR, SUBMODULE_INDENT
+from kittygrad.utils.classes import DotDict
+from kittygrad.utils.constants import *
 
 
 class Parameter(kitty.Tensor):
@@ -18,6 +19,20 @@ class Parameter(kitty.Tensor):
 
     def __repr__(self) -> str:
         return f'Parameter containing:\n{super().__repr__()}'
+
+
+class DummyParameter(DotDict):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        if self.shape is None:
+            self.shape = tuple()
+
+        if self.dtype is None:
+            self.dtype = DEFAULT_DTYPE
+
+        if self.requires_grad is None:
+            self.requires_grad = True
 
 
 class Module(abc.ABC):
