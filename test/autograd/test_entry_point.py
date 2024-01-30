@@ -16,7 +16,7 @@ def test_entry_point(compare):
     # non-scalar implicit gradient initialization
     with pytest.raises(RuntimeError) as msg:
         kitty_a.backward()
-    assert str(msg.value) == "Grad can be implicitly created only for scalar outputs."
+    assert str(msg.value) == "Gradient can be implicitly created only for scalar outputs."
     assert kitty_a.grad is None
 
     # wrong initial gradient size

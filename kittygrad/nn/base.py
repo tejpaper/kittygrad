@@ -72,6 +72,8 @@ class Module(abc.ABC):
     def __call__(self, *args, **kwargs) -> typing.Any:
         return self.forward(*args, **kwargs)
 
+    # TODO: extra_repr
+
     def __repr__(self) -> str:  # TODO: test
         prefix = f'{type(self).__name__}('
 

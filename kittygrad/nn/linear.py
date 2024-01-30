@@ -12,7 +12,7 @@ class Identity(Module):
         return input
 
 
-class Linear(Module):
+class Linear(Module):  # TODO: test
     def __init__(self,
                  in_features: int,
                  out_features: int,

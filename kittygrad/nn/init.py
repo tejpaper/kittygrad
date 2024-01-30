@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import math
 
-import numpy as np
-
 import kittygrad as kitty
-from kittygrad.utils.constants import Size, Scalar, DEFAULT_DTYPE
+from kittygrad.utils.constants import *
 
 
 def calculate_gain(nonlinearity: str) -> Scalar:

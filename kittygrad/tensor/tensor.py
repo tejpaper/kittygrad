@@ -13,7 +13,7 @@ from kittygrad.utils.exceptions import redundant_backward_error
 from kittygrad.utils.functions import flatten
 
 
-class Tensor:
+class Tensor:  # TODO: test empty tensor cases
     def __init__(self, data, *, dtype: type | np.dtype | None = None, requires_grad: bool = False) -> None:
         if type(data) is type(self):
             raise RuntimeError("If you want to create a new tensor from another, use "
@@ -26,8 +26,9 @@ class Tensor:
 
         if dtype_unknown:
             if not is_ndarray:
-                dtype = np.result_type(*flatten(data))
-                if dtype == np.float_:
+                if flattened_data := flatten(data):
+                    dtype = np.result_type(*flatten(data))
+                if dtype == np.float_ or not flattened_data:
                     dtype = DEFAULT_DTYPE
             else:
                 dtype = data.dtype
@@ -53,12 +54,12 @@ class Tensor:
         self._retains_grad = False
         self._version = mutable_int(0)
 
-    __array_ufunc__ = None
-
     # ============================================= Tensor Representation ==============================================
 
     def __repr__(self) -> str:
         suffix = ''
+        if self.nelement() == 0:
+            suffix += f', size={self.shape}'
         if self.dtype != DEFAULT_DTYPE:
             suffix += f', dtype={self.dtype}'
         if self._grad_fn is not None:
@@ -79,6 +80,12 @@ class Tensor:
 
     def __str__(self) -> str:
         return repr(self)
+
+    def __len__(self) -> int:  # TODO: test
+        if self.ndim == 0:
+            raise TypeError("The length is not defined for a 0D tensor.")
+        else:
+            return self.shape[0]
 
     # ============================================== Getters and Setters ===============================================
 
@@ -164,6 +171,23 @@ class Tensor:
     @property  # not writable
     def version(self) -> int:
         return self._version.value
+
+    # ===================================== Compatibility with 3rd party libraries =====================================
+
+    __array_ufunc__ = None
+
+    def __array__(self, dtype: type | np.dtype | None = None) -> np.ndarray:  # TODO: test
+        if dtype is None:
+            return self._data
+        else:
+            return self._data.astype(dtype, copy=False)
+
+    def __iter__(self) -> typing.Iterator[Tensor]:  # TODO: test
+        # resolves issue with pandas.api.types.is_list_like
+        if self.ndim == 0:
+            raise TypeError("Iteration over a 0D tensor is not possible.")
+        else:
+            return map(tensor, self._data)
 
     # ====================================================== Func ======================================================
 
@@ -396,7 +420,7 @@ class Tensor:
         if not self._requires_grad:
             raise RuntimeError("Tensor does not require grad and does not have a grad_fn.")
         elif gradient is None and self.ndim:
-            raise RuntimeError("Grad can be implicitly created only for scalar outputs.")
+            raise RuntimeError("Gradient can be implicitly created only for scalar outputs.")
 
         if gradient is None:
             gradient = tensor(1, dtype=self.dtype)

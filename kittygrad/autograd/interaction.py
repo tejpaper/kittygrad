@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import typing
 import warnings
-from collections.abc import Iterable
 from contextlib import nullcontext
 from functools import wraps
 
@@ -11,7 +10,7 @@ from inflection import underscore
 
 from kittygrad.autograd.engine import FnBackward, BackwardGraph
 from kittygrad.func.handler import normalize_args
-from kittygrad.tensor.tensor import tensor
+from kittygrad.tensor.tensor import Tensor, tensor
 from kittygrad.utils.classes import DotDict
 
 
@@ -109,7 +108,7 @@ class FunctionMeta(abc.ABCMeta):
             custom_function.ctx = self._ctx
             prev_grads = backward(custom_function, tensor(self._grad))
 
-            if not isinstance(prev_grads, Iterable):
+            if isinstance(prev_grads, Tensor | None):
                 prev_grads = (prev_grads,)
 
             for next_fn, grad in zip(self._next_functions, prev_grads):
