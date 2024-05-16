@@ -6,12 +6,12 @@ import warnings
 from contextlib import nullcontext
 from functools import wraps
 
-from inflection import underscore
+from inflection import underscore  # TODO: remove redundant dependency (requirements/kittygrad.txt)
 
+from kittygrad.autograd.context import Context
+from kittygrad.tensor.tensor import Tensor, tensor
 from kittygrad.autograd.engine import FnBackward, BackwardGraph
 from kittygrad.func.handler import normalize_args
-from kittygrad.tensor.tensor import Tensor, tensor
-from kittygrad.utils.classes import DotDict
 
 
 class no_grad:
@@ -41,7 +41,7 @@ class no_grad:
     @staticmethod
     def _hook(function: typing.Callable) -> typing.Callable:
         @wraps(function)
-        def disable_grad(ctx: DotDict, *args, **kwargs):
+        def disable_grad(ctx: Context, *args, **kwargs):
             output_tensor = function(ctx, *args, **kwargs)
             output_tensor._requires_grad = False
 
@@ -84,7 +84,7 @@ class FunctionMeta(abc.ABCMeta):
                           backward_node_cls: typing.Type[FnBackward]) -> typing.Callable:
         forward = BackwardGraph.disable(forward)
 
-        def integrated_forward(ctx: DotDict, self: typing.Self[Function], *args, **kwargs) -> Tensor:
+        def integrated_forward(ctx: Context, self: typing.Self[Function], *args, **kwargs) -> Tensor:
             ctx.custom_function = self
             self.ctx = ctx
             return forward(self, *args, **kwargs)
@@ -120,7 +120,7 @@ class FunctionMeta(abc.ABCMeta):
 
 class Function(metaclass=FunctionMeta):
     def __init__(self) -> None:
-        self.ctx = DotDict(saved_tensors=[])  # placeholder
+        self.ctx = Context(saved_tensors=[])  # placeholder
 
     def __call__(self, *args, **kwargs) -> Tensor:
         raise RuntimeError("Impossible exception.")  # overridden by FunctionMeta

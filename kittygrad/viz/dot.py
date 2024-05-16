@@ -5,14 +5,10 @@ from functools import wraps
 
 from graphviz import Digraph
 
+import kittygrad.core as core
 import kittygrad.autograd.engine as engine
 from kittygrad.tensor.tensor import Tensor
-from kittygrad.utils.classes import DotDict
-from kittygrad.utils.exceptions import truncated_graph_error
-
-
-def obj_name(obj: typing.Any) -> str:
-    return str(id(obj))
+from kittygrad.viz.utils import obj_name
 
 
 class CompGraph(Digraph):
@@ -76,7 +72,7 @@ class CompGraph(Digraph):
         del engine.BackwardGraph.post_builder_hooks.comp_graph
         self._stash.clear()
 
-    def _tensor_node_cfg(self, tensor: Tensor) -> DotDict[str, str]:
+    def _tensor_node_cfg(self, tensor: Tensor) -> core.DotDict[str, str]:
         if not tensor.is_leaf:
             color = self.branch_color
             fillcolor = self.branch_fillcolor
@@ -87,29 +83,29 @@ class CompGraph(Digraph):
             color = self.dried_leaf_color
             fillcolor = self.dried_leaf_fillcolor
 
-        return DotDict(name=obj_name(tensor),
-                       label=f'Tensor\n{tensor.shape}',
-                       style='filled',
-                       color=color,
-                       fillcolor=fillcolor)
+        return core.DotDict(name=obj_name(tensor),
+                            label=f'Tensor\n{tensor.shape}',
+                            style='filled',
+                            color=color,
+                            fillcolor=fillcolor)
 
-    def _forward_node_cfg(self, function: typing.Callable, out_cfg: DotDict[str, str]) -> DotDict[str, str]:
-        return DotDict(name=f'forward_{self._level}',
-                       label=function.__name__[1:],
-                       style='rounded,filled',
-                       color=out_cfg['color'],
-                       fillcolor=out_cfg['fillcolor'])
+    def _forward_node_cfg(self, function: typing.Callable, out_cfg: core.DotDict[str, str]) -> core.DotDict[str, str]:
+        return core.DotDict(name=f'forward_{self._level}',
+                            label=function.__name__[1:],
+                            style='rounded,filled',
+                            color=out_cfg['color'],
+                            fillcolor=out_cfg['fillcolor'])
 
-    def _backward_node_cfg(self, ba: engine.BackwardAccess) -> DotDict[str, str]:
-        return DotDict(name=obj_name(ba),
-                       label=type(ba).__name__,
-                       style='rounded,filled',
-                       color=self.backward_color,
-                       fillcolor=self.backward_fillcolor)
+    def _backward_node_cfg(self, ba: engine.BackwardAccess) -> core.DotDict[str, str]:
+        return core.DotDict(name=obj_name(ba),
+                            label=type(ba).__name__,
+                            style='rounded,filled',
+                            color=self.backward_color,
+                            fillcolor=self.backward_fillcolor)
 
     def _stash_check(self, ba_name: str) -> None:
         if ba_name not in self._stash:
-            truncated_graph_error()
+            raise core.TruncatedGraphError
 
     def _render_forward_pass(self, builder: typing.Callable, builder_args: tuple, builder_kwargs: dict,
                              output_tensor: Tensor,
@@ -195,7 +191,7 @@ class CompGraph(Digraph):
             self.edge(fn_name, ba_name, color=self.backward_color, constraint='false')
 
         if is_truncated:
-            truncated_graph_error()
+            raise core.TruncatedGraphError
 
     def _hook(self, builder: typing.Callable) -> typing.Callable:
         @wraps(builder)

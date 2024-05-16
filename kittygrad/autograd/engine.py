@@ -5,15 +5,9 @@ import typing
 import warnings
 from functools import update_wrapper, wraps
 
-import numpy as np
-
+import kittygrad.core as core
 import kittygrad.tensor.tensor as tsr
-from kittygrad.utils.classes import DotDict
-from kittygrad.utils.constants import NP_OPS_CONFIG
-from kittygrad.utils.exceptions import (
-    inplace_modification_error,
-    redundant_backward_error,
-)
+from kittygrad.autograd.context import Context
 
 
 class BackwardAccess(abc.ABC):  # ba short
@@ -42,23 +36,23 @@ class AccumulateGrad(BackwardAccess):  # ag short
                                f"must match the size of its gradient {grad.shape}.")
 
         if self._tensor._grad is None:
-            self._tensor._grad = np.zeros_like(self._tensor._data)
+            self._tensor._grad = core.np.zeros_like(self._tensor._data)
 
         # += will cause a bug if self._tensor._grad is grad
-        np.add(self._tensor._grad, grad, out=self._tensor._grad, **NP_OPS_CONFIG)
+        core.strict.add(self._tensor._grad, grad, out=self._tensor._grad)
 
 
 class FnBackward(BackwardAccess, abc.ABC):  # fn short
     def __init__(self,
-                 ctx: DotDict[str, typing.Any],
+                 ctx: Context[str, typing.Any],
                  next_functions: list[FnBackward | None]) -> None:
         self._ctx = ctx
         self._next_functions = next_functions
 
-        self._grad = np.zeros_like(self._ctx.out._data)
+        self._grad = core.np.zeros_like(self._ctx.out._data)
         self._lock = 0  # instead of topological sort
 
-        self._versions = DotDict(
+        self._versions = core.DotDict(
             out=self._ctx.out.version,
             saved_tensors=[
                 tensor.version if tensor is not None else 0
@@ -76,21 +70,21 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
     def _inplace_modification_check(self) -> None:
         if self._ctx.out.version != self._versions.out:
-            inplace_modification_error()
+            raise core.InplaceModificationError
 
     def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
         assert id(self._grad) != id(prev_grad)  # TODO: remove me after a bunch of tests
-        np.add(self._grad, prev_grad, out=self._grad, **NP_OPS_CONFIG)
+        core.strict.add(self._grad, prev_grad, out=self._grad)
         self._lock -= 1
 
         if self._lock > 0:
             return
         elif self._lock < 0 or all(next_fn is None for next_fn in self._next_functions):
-            redundant_backward_error()
+            raise core.RedundantBackwardError()
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
             if tensor is not None and tensor.version != old_version:
-                inplace_modification_error()
+                raise core.InplaceModificationError
 
         # retain_grad hook
         if self._ctx.out.retains_grad:
@@ -107,8 +101,8 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
 
 class BackwardGraph:
-    pre_builder_hooks = DotDict()
-    post_builder_hooks = DotDict()
+    pre_builder_hooks = core.DotDict()
+    post_builder_hooks = core.DotDict()
     disabled = False
 
     def __init__(self, function: typing.Callable, node: typing.Type[FnBackward]) -> None:
@@ -117,7 +111,7 @@ class BackwardGraph:
         update_wrapper(self, function)
 
     def __call__(self, *args, **kwargs) -> Tensor:
-        ctx = DotDict(saved_tensors=[])
+        ctx = Context(saved_tensors=[])
         out = self.function(ctx, *args, **kwargs)
 
         if not out.requires_grad:
@@ -152,7 +146,7 @@ class BackwardGraph:
             def apply_hooks(*args, **kwargs) -> Tensor:
 
                 if cls.disabled:
-                    dummy_ctx = DotDict(saved_tensors=[])
+                    dummy_ctx = Context(saved_tensors=[])
                     return function(dummy_ctx, *args, **kwargs)
 
                 wrapped_func = function

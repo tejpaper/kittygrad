@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import numpy as np
-
+import kittygrad.core as core
 import kittygrad.tensor.tensor as tsr
 from kittygrad.autograd.engine import BackwardGraph
 from kittygrad.autograd.view import (
@@ -14,13 +13,11 @@ from kittygrad.autograd.view import (
     IndexPutBackward,
 )
 from kittygrad.func.handler import inplace, share
-from kittygrad.utils.classes import DotDict
-from kittygrad.utils.constants import Size
-from kittygrad.utils.functions import check_dim, check_dims
+from kittygrad.func.utils import check_dim, check_dims
 
 
 @BackwardGraph.mount(TransposeBackward)
-def _transpose(ctx: DotDict, tensor: Tensor, dim0: int, dim1: int) -> Tensor:
+def _transpose(ctx: Context, tensor: Tensor, dim0: int, dim1: int) -> Tensor:
     if tensor.ndim == 0:
         raise RuntimeError("Scalar cannot be transposed.")
 
@@ -30,13 +27,13 @@ def _transpose(ctx: DotDict, tensor: Tensor, dim0: int, dim1: int) -> Tensor:
     ctx.dim0 = dim0
     ctx.dim1 = dim1
     return tsr.tensor(
-        data=np.swapaxes(tensor._data, dim0, dim1),
+        data=core.np.swapaxes(tensor._data, dim0, dim1),
         requires_grad=tensor.requires_grad,
     )
 
 
 @BackwardGraph.mount(PermuteBackward)
-def _permute(ctx: DotDict, tensor: Tensor, dims: Size) -> Tensor:
+def _permute(ctx: Context, tensor: Tensor, dims: Size) -> Tensor:
     if tensor.ndim != len(dims):
         raise RuntimeError("Number of dimensions in the tensor input does not match "
                            "the length of the desired ordering of dimensions i.e. "
@@ -46,13 +43,13 @@ def _permute(ctx: DotDict, tensor: Tensor, dims: Size) -> Tensor:
 
     ctx.dims = dims
     return tsr.tensor(
-        data=np.transpose(tensor._data, dims),
+        data=core.np.transpose(tensor._data, dims),
         requires_grad=tensor.requires_grad,
     )
 
 
 @BackwardGraph.mount(SqueezeBackward)
-def _squeeze(ctx: DotDict, tensor: Tensor, dim: int | Size | None) -> Tensor:
+def _squeeze(ctx: Context, tensor: Tensor, dim: int | Size | None) -> Tensor:
     if isinstance(dim, int):
         check_dim(dim, tensor.ndim)
         dim = (dim,) if tensor.shape[dim] == 1 else ()
@@ -69,7 +66,7 @@ def _squeeze(ctx: DotDict, tensor: Tensor, dim: int | Size | None) -> Tensor:
 
 
 @BackwardGraph.mount(UnsqueezeBackward)
-def _unsqueeze(ctx: DotDict, tensor: Tensor, dim: int | Size) -> Tensor:
+def _unsqueeze(ctx: Context, tensor: Tensor, dim: int | Size) -> Tensor:
     if isinstance(dim, int):
         dim = (dim,)
     else:
@@ -79,24 +76,24 @@ def _unsqueeze(ctx: DotDict, tensor: Tensor, dim: int | Size) -> Tensor:
 
     ctx.dim = dim
     return tsr.tensor(
-        data=np.expand_dims(tensor._data, dim),
+        data=core.np.expand_dims(tensor._data, dim),
         requires_grad=tensor.requires_grad,
     )
 
 
 @BackwardGraph.mount(ExpandBackward)
-def _expand(ctx: DotDict, tensor: Tensor, shape: Size, expanded_dims: Size, offset: int) -> Tensor:
+def _expand(ctx: Context, tensor: Tensor, shape: Size, expanded_dims: Size, offset: int) -> Tensor:
     ctx.expanded_dims = tuple(expanded_dims)
     ctx.leading_dims = tuple(range(offset))
 
     return tsr.tensor(
-        data=np.broadcast_to(tensor._data, shape),
+        data=core.np.broadcast_to(tensor._data, shape),
         requires_grad=tensor.requires_grad,
     )
 
 
 @share
-def broadcast_to(input: Tensor, shape: Size) -> Tensor:  # noqa: torch-like API
+def broadcast_to(input: Tensor, shape: Size) -> Tensor:
     for dim in shape:
         if dim <= 0 and dim != -1:
             raise RuntimeError(f"The expanded size of the tensor ({dim}) isn't allowed.")
@@ -133,12 +130,12 @@ def broadcast_to(input: Tensor, shape: Size) -> Tensor:  # noqa: torch-like API
 
 def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
     # numpy exceptions are absolutely fine
-    result_shape = np.broadcast(*[t._data for t in tensors]).shape
+    result_shape = core.np.broadcast(*[t._data for t in tensors]).shape
     return [broadcast_to(t, result_shape) for t in tensors]
 
 
 @BackwardGraph.mount(IndexBackward)
-def _index(ctx: DotDict, tensor: Tensor, key) -> Tensor:
+def _index(ctx: Context, tensor: Tensor, key) -> Tensor:
     if not isinstance(key, tuple):
         key = (key,)
     if not any(ind is Ellipsis for ind in key):
@@ -159,7 +156,7 @@ def _index_view(*args, **kwargs) -> Tensor:
 
 @inplace(promotion=False, broadcasting=False)
 @BackwardGraph.mount(IndexPutBackward)
-def _index_put(ctx: DotDict, tensor: Tensor, value: Operand, key) -> Tensor:
+def _index_put(ctx: Context, tensor: Tensor, value: Operand, key) -> Tensor:
     tensor._data[key] = value._data
     ctx.key = key
     return tensor

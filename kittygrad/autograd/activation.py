@@ -1,5 +1,4 @@
-import numpy as np
-
+import kittygrad.core as core
 from kittygrad.autograd.engine import FnBackward
 
 
@@ -20,7 +19,7 @@ class TanhBackward(FnBackward):
 class ReluBackward(FnBackward):
     def _propagate(self) -> None:
         self._inplace_modification_check()
-        self._grad *= (self._ctx.out._data > 0)
+        self._grad *= (self._ctx.out._data > 0)  # TODO: try np.heaviside
         self._next_functions[0].propagate(self._grad)
 
 
@@ -29,5 +28,5 @@ class SoftmaxBackward(FnBackward):
         self._inplace_modification_check()
 
         self._grad *= self._ctx.out._data
-        self._grad -= np.sum(self._grad, axis=self._ctx.dim, keepdims=True) * self._ctx.out._data
+        self._grad -= core.np.sum(self._grad, axis=self._ctx.dim, keepdims=True) * self._ctx.out._data
         self._next_functions[0].propagate(self._grad)

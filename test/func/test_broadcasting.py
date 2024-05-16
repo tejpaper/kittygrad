@@ -1,6 +1,6 @@
 import itertools
 
-from kittygrad.utils.constants import ALL_DTYPES
+from kittygrad.core import ALL_DTYPES
 from test.conftest import *
 
 

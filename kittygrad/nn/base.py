@@ -5,8 +5,7 @@ import itertools
 import typing
 
 import kittygrad as kitty
-from kittygrad.utils.classes import DotDict
-from kittygrad.utils.constants import *
+import kittygrad.core as core
 
 
 class Parameter(kitty.Tensor):
@@ -21,7 +20,7 @@ class Parameter(kitty.Tensor):
         return f'Parameter containing:\n{super().__repr__()}'
 
 
-class DummyParameter(DotDict):
+class DummyParameter(core.DotDict):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -29,7 +28,7 @@ class DummyParameter(DotDict):
             self.shape = tuple()
 
         if self.dtype is None:
-            self.dtype = DEFAULT_DTYPE
+            self.dtype = core.DEFAULT_DTYPE
 
         if self.requires_grad is None:
             self.requires_grad = True
@@ -41,8 +40,8 @@ class Module(abc.ABC):
     def __init__(self) -> None:
         self.training = True
 
-        self._parameters = dict()
-        self._modules = dict()
+        self._parameters = {}
+        self._modules = {}
 
     def __setattr__(self, attr_name: str, attr_value: typing.Any) -> None:
         if all(hasattr(self, attr) for attr in Module._INIT_ATTRS):
@@ -78,7 +77,7 @@ class Module(abc.ABC):
         prefix = f'{type(self).__name__}('
 
         content = ''
-        indent = f'\n{SUBMODULE_INDENT}'
+        indent = f'\n{core.SUBMODULE_INDENT}'
         for name, submodule in self._modules.items():
             submodule_repr = repr(submodule).split('\n')
             submodule_repr[0] = f'{indent}({name}): {submodule_repr[0]}'
@@ -103,7 +102,7 @@ class Module(abc.ABC):
                          ) -> typing.Iterator[tuple[str, Parameter]]:
         params = itertools.chain(
             *map(lambda x: [(prefix + x[0], x[1])], self._parameters.items()),
-            *map(lambda x: x[1].named_parameters(x[0] + SUBMODULE_SEPARATOR, remove_duplicate=False),
+            *map(lambda x: x[1].named_parameters(x[0] + core.SUBMODULE_SEPARATOR, remove_duplicate=False),
                  self._modules.items()) if recurse else []
         )
         if remove_duplicate:

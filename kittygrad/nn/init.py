@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 import kittygrad as kitty
-from kittygrad.utils.constants import *
+import kittygrad.core as core
 
 
 def calculate_gain(nonlinearity: str) -> Scalar:
@@ -37,8 +37,8 @@ def kaiming_uniform(shape: Size,
     bound = gain * math.sqrt(3 / fan_in)
 
     return kitty.tensor(
-        data=np.random.uniform(-bound, bound, shape),
-        dtype=DEFAULT_DTYPE if dtype is None else dtype,
+        data=core.np.random.uniform(-bound, bound, shape),
+        dtype=core.DEFAULT_DTYPE if dtype is None else dtype,
         requires_grad=requires_grad)
 
 
@@ -52,6 +52,6 @@ def kaiming_normal(shape: Size,
     std = gain / math.sqrt(fan_in)
 
     return kitty.tensor(
-        data=np.random.normal(scale=std, size=shape),
-        dtype=DEFAULT_DTYPE if dtype is None else dtype,
+        data=core.np.random.normal(scale=std, size=shape),
+        dtype=core.DEFAULT_DTYPE if dtype is None else dtype,
         requires_grad=requires_grad)

@@ -8,7 +8,7 @@ class Identity(Module):
     def __init__(self, *_args, **_kwargs) -> None:
         super().__init__()
 
-    def forward(self, input: kitty.Tensor) -> kitty.Tensor:  # noqa: torch-like API
+    def forward(self, input: kitty.Tensor) -> kitty.Tensor:
         return input
 
 
@@ -17,8 +17,7 @@ class Linear(Module):  # TODO: test
                  in_features: int,
                  out_features: int,
                  bias: bool = True,
-                 dtype: type | np.dtype | None = None,
-                 ) -> None:
+                 dtype: type | np.dtype | None = None) -> None:
         super().__init__()
 
         self.weight = DummyParameter(shape=(in_features, out_features), dtype=dtype)
@@ -35,7 +34,7 @@ class Linear(Module):  # TODO: test
                                                    self.weight.dtype,
                                                    self.bias.requires_grad))
 
-    def forward(self, input: kitty.Tensor) -> kitty.Tensor:  # noqa: torch-like API
+    def forward(self, input: kitty.Tensor) -> kitty.Tensor:
         output = kitty.matmul(input, self.weight)
         if self.bias is not None:
             output += self.bias

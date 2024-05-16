@@ -11,8 +11,8 @@ float64 = double = np.float64
 ALL_DTYPES = [float16, float32, float64]
 DEFAULT_DTYPE = float32
 
-# numpy operations config
-NP_OPS_CONFIG = dict(casting='no')
+# "strict" namespace definition; all np.ndarray castings must be explicit
+NP_STRICT_CONFIG = dict(casting='no')
 
 # tensor representation
 REPR_MAX_LINE_WIDTH = 89

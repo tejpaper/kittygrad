@@ -1,25 +1,6 @@
 from __future__ import annotations
 
-import typing
-from collections.abc import Iterable
-
-from kittygrad.utils.constants import *
-
-manual_seed = np.random.seed
-
-
-def flatten(x: typing.Any) -> list:
-    return sum(map(flatten, x), []) if isinstance(x, Iterable) else [x]
-
-
-def inv_permutation(permutation: Size) -> Size:
-    if not permutation:
-        return tuple()
-
-    permutation = np.array(permutation)
-    inv = np.empty_like(permutation)
-    inv[permutation] = np.arange(len(inv), dtype=inv.dtype)
-    return inv.tolist()
+# TODO: order (including imports)
 
 
 def dim2tuple(dim: int | Size | None, ndim: int) -> tuple[int, ...]:
