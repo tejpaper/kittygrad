@@ -1,7 +1,9 @@
+import typing
+
 import numpy as np
 
 # auxiliary typing
-Size = tuple[int, ...] | list[int]
+Size = typing.Sequence[int] | tuple[int, ...]  # *size notation requires tuple
 Scalar = int | float
 
 # supported dtypes

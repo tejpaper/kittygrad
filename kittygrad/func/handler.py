@@ -1,22 +1,20 @@
 from __future__ import annotations
 
-import inspect
-import typing
 from functools import wraps
 
-import kittygrad.core as core
 import kittygrad.tensor.tensor as tsr
 from kittygrad.autograd.engine import BackwardGraph
+from kittygrad.core import *
 
 
 def scalar2tensor(scalar: Scalar,
                   tensor: Tensor,
                   promotion: bool = True,
                   broadcasting: bool = True) -> Tensor:
-    dtype = tensor.dtype if promotion else core.DEFAULT_DTYPE
+    dtype = tensor.dtype if promotion else DEFAULT_DTYPE
 
     if broadcasting:
-        return tsr.tensor(core.np.full(tensor.shape, scalar, dtype=dtype))
+        return tsr.tensor(np.full(tensor.shape, scalar, dtype=dtype))
     else:
         return tsr.tensor(scalar, dtype=dtype)
 
@@ -26,7 +24,7 @@ def array2tensor(array: np.ndarray,
                  promotion: bool = True,
                  broadcasting: bool = True) -> tuple[Tensor, Tensor]:
     if promotion:
-        dtype = core.np.result_type(array.dtype, tensor.dtype)
+        dtype = np.result_type(array.dtype, tensor.dtype)
         casted = tsr.tensor(array, dtype=dtype)
         tensor = tensor.type(dtype)
     else:
@@ -43,7 +41,7 @@ def tensor2tensor(tensor: Tensor,
                   promotion: bool = True,
                   broadcasting: bool = True) -> tuple[Tensor, Tensor]:
     if promotion:
-        dtype = core.np.result_type(tensor.dtype, other.dtype)
+        dtype = np.result_type(tensor.dtype, other.dtype)
         tensor = tensor.type(dtype)
         other = other.type(dtype)
 
@@ -79,9 +77,9 @@ def autocast(op_symbol: str = None,
         @normalize_args(function)
         def handler(tensor, other, *args, **kwargs) -> Tensor:
 
-            if isinstance(other, core.Scalar) and core.Scalar not in prohibited_types:
+            if isinstance(other, Scalar) and Scalar not in prohibited_types:
                 other = scalar2tensor(other, tensor, promotion, broadcasting)
-            elif isinstance(other, core.np.ndarray) and core.np.ndarray not in prohibited_types:
+            elif isinstance(other, np.ndarray) and np.ndarray not in prohibited_types:
                 other, tensor = array2tensor(other, tensor, promotion, broadcasting)
             elif isinstance(other, tsr.Tensor):
                 tensor, other = tensor2tensor(tensor, other, promotion, broadcasting)

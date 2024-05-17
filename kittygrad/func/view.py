@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import kittygrad.core as core
 import kittygrad.tensor.tensor as tsr
 from kittygrad.autograd.engine import BackwardGraph
 from kittygrad.autograd.view import (
@@ -12,6 +11,7 @@ from kittygrad.autograd.view import (
     IndexBackward,
     IndexPutBackward,
 )
+from kittygrad.core import *
 from kittygrad.func.handler import inplace, share
 from kittygrad.func.utils import check_dim, check_dims
 
@@ -27,7 +27,7 @@ def _transpose(ctx: Context, tensor: Tensor, dim0: int, dim1: int) -> Tensor:
     ctx.dim0 = dim0
     ctx.dim1 = dim1
     return tsr.tensor(
-        data=core.np.swapaxes(tensor._data, dim0, dim1),
+        data=np.swapaxes(tensor._data, dim0, dim1),
         requires_grad=tensor.requires_grad,
     )
 
@@ -43,7 +43,7 @@ def _permute(ctx: Context, tensor: Tensor, dims: Size) -> Tensor:
 
     ctx.dims = dims
     return tsr.tensor(
-        data=core.np.transpose(tensor._data, dims),
+        data=np.transpose(tensor._data, dims),
         requires_grad=tensor.requires_grad,
     )
 
@@ -76,7 +76,7 @@ def _unsqueeze(ctx: Context, tensor: Tensor, dim: int | Size) -> Tensor:
 
     ctx.dim = dim
     return tsr.tensor(
-        data=core.np.expand_dims(tensor._data, dim),
+        data=np.expand_dims(tensor._data, dim),
         requires_grad=tensor.requires_grad,
     )
 
@@ -87,7 +87,7 @@ def _expand(ctx: Context, tensor: Tensor, shape: Size, expanded_dims: Size, offs
     ctx.leading_dims = tuple(range(offset))
 
     return tsr.tensor(
-        data=core.np.broadcast_to(tensor._data, shape),
+        data=np.broadcast_to(tensor._data, shape),
         requires_grad=tensor.requires_grad,
     )
 
@@ -130,7 +130,7 @@ def broadcast_to(input: Tensor, shape: Size) -> Tensor:
 
 def broadcast_tensors(*tensors: Tensor) -> list[Tensor]:
     # numpy exceptions are absolutely fine
-    result_shape = core.np.broadcast(*[t._data for t in tensors]).shape
+    result_shape = np.broadcast(*[t._data for t in tensors]).shape
     return [broadcast_to(t, result_shape) for t in tensors]
 
 

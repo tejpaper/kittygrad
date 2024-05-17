@@ -1,11 +1,8 @@
-from __future__ import annotations
-
 import abc
 import itertools
-import typing
 
 import kittygrad as kitty
-import kittygrad.core as core
+from kittygrad.core import *
 
 
 class Parameter(kitty.Tensor):
@@ -20,7 +17,7 @@ class Parameter(kitty.Tensor):
         return f'Parameter containing:\n{super().__repr__()}'
 
 
-class DummyParameter(core.DotDict):
+class DummyParameter(DotDict):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -28,7 +25,7 @@ class DummyParameter(core.DotDict):
             self.shape = tuple()
 
         if self.dtype is None:
-            self.dtype = core.DEFAULT_DTYPE
+            self.dtype = DEFAULT_DTYPE
 
         if self.requires_grad is None:
             self.requires_grad = True
@@ -77,7 +74,7 @@ class Module(abc.ABC):
         prefix = f'{type(self).__name__}('
 
         content = ''
-        indent = f'\n{core.SUBMODULE_INDENT}'
+        indent = f'\n{SUBMODULE_INDENT}'
         for name, submodule in self._modules.items():
             submodule_repr = repr(submodule).split('\n')
             submodule_repr[0] = f'{indent}({name}): {submodule_repr[0]}'
@@ -102,7 +99,7 @@ class Module(abc.ABC):
                          ) -> typing.Iterator[tuple[str, Parameter]]:
         params = itertools.chain(
             *map(lambda x: [(prefix + x[0], x[1])], self._parameters.items()),
-            *map(lambda x: x[1].named_parameters(x[0] + core.SUBMODULE_SEPARATOR, remove_duplicate=False),
+            *map(lambda x: x[1].named_parameters(x[0] + SUBMODULE_SEPARATOR, remove_duplicate=False),
                  self._modules.items()) if recurse else []
         )
         if remove_duplicate:

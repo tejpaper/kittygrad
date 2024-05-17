@@ -8,10 +8,13 @@ from functools import wraps
 
 from inflection import underscore  # TODO: remove redundant dependency (requirements/kittygrad.txt)
 
-from kittygrad.autograd.context import Context
 from kittygrad.tensor.tensor import Tensor, tensor
-from kittygrad.autograd.engine import FnBackward, BackwardGraph
+from kittygrad.autograd.engine import Context, FnBackward, BackwardGraph
 from kittygrad.func.handler import normalize_args
+
+FunctionType = typing.Callable[..., Tensor]
+InputTensorsGrads = Tensor | tuple[Tensor | None, ...]
+BackwardFunctionType = typing.Callable[[Tensor], InputTensorsGrads]
 
 
 class no_grad:
@@ -39,9 +42,9 @@ class no_grad:
         del BackwardGraph.pre_builder_hooks.no_grad
 
     @staticmethod
-    def _hook(function: typing.Callable) -> typing.Callable:
+    def _hook(function: FunctionType) -> FunctionType:
         @wraps(function)
-        def disable_grad(ctx: Context, *args, **kwargs):
+        def disable_grad(ctx: Context, *args, **kwargs) -> Tensor:
             output_tensor = function(ctx, *args, **kwargs)
             output_tensor._requires_grad = False
 
@@ -80,11 +83,11 @@ class FunctionMeta(abc.ABCMeta):
         return super().__new__(mcs, name, bases, namespace)
 
     @staticmethod
-    def integrate_forward(forward: typing.Callable, name: str,
-                          backward_node_cls: typing.Type[FnBackward]) -> typing.Callable:
+    def integrate_forward(forward: FunctionType, name: str,
+                          backward_node_cls: typing.Type[FnBackward]) -> FunctionType:
         forward = BackwardGraph.disable(forward)
 
-        def integrated_forward(ctx: Context, self: typing.Self[Function], *args, **kwargs) -> Tensor:
+        def integrated_forward(ctx: Context, self: Function, *args, **kwargs) -> Tensor:
             ctx.custom_function = self
             self.ctx = ctx
             return forward(self, *args, **kwargs)
@@ -96,10 +99,10 @@ class FunctionMeta(abc.ABCMeta):
         return integrated_forward
 
     @staticmethod
-    def integrate_backward(backward: typing.Callable, output_version_check: bool) -> typing.Callable:
+    def integrate_backward(backward: BackwardFunctionType, output_version_check: bool) -> typing.Callable:
         backward = BackwardGraph.disable(backward)
 
-        def integrated_backward(self: typing.Self[FnBackward]) -> None:
+        def integrated_backward(self: FnBackward) -> None:
             custom_function = self._ctx.custom_function
 
             if output_version_check:
@@ -130,5 +133,5 @@ class Function(metaclass=FunctionMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def backward(self, grad_output: Tensor) -> Tensor | tuple[Tensor | None, ...]:
+    def backward(self, grad_output: Tensor) -> InputTensorsGrads:
         raise NotImplementedError

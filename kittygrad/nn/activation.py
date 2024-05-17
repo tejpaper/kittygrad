@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 import kittygrad as kitty
+from kittygrad.core import Size
 from kittygrad.func.activation import (
     _sigmoid,
     _tanh,

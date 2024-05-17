@@ -1,7 +1,6 @@
 # native imports
 from kittygrad.core.classes import *
 from kittygrad.core.constants import *
-from kittygrad.core.exceptions import *
 from kittygrad.core.namespace import *
 
 # computing core
@@ -22,3 +21,5 @@ if NP_STRICT_CONFIG:
     })
 else:
     strict = np
+
+del partial, getmembers, SimpleNamespace

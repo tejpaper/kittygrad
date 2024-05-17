@@ -1,8 +1,5 @@
 __version__ = '1.0.0-alpha'
 
-# TODO: refactor imports
-# TODO: proper type hinting
-
 from kittygrad.autograd.interaction import no_grad, Function
 
 from kittygrad.func.activation import softmax, log_softmax

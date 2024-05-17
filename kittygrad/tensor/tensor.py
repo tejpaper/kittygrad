@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import typing
 import warnings
 from ctypes import c_int64 as mutable_int
 from types import EllipsisType, NoneType
 
-import kittygrad.core as core
 from kittygrad.autograd.engine import FnBackward, check_locks
+from kittygrad.autograd.utils import redundant_backward_error
+from kittygrad.core import *
 from kittygrad.func import activation, ops, view
 from kittygrad.func.handler import autocast, inplace, share
 from kittygrad.tensor.utils import flatten
@@ -17,32 +17,32 @@ class Tensor:  # TODO: test empty tensor cases
         if type(data) is type(self):
             raise RuntimeError("If you want to create a new tensor from another, use "
                                "source_tensor.detach() and then specify the requires_grad attribute.")
-        elif isinstance(data, core.np.generic):
-            data = core.np.array(data)
+        elif isinstance(data, np.generic):
+            data = np.array(data)
 
-        is_ndarray = isinstance(data, core.np.ndarray)
+        is_ndarray = isinstance(data, np.ndarray)
         dtype_unknown = dtype is None
 
         if dtype_unknown:
             if not is_ndarray:
                 if flattened_data := flatten(data):
-                    dtype = core.np.result_type(*flatten(data))
-                if dtype == core.np.float_ or not flattened_data:
-                    dtype = core.DEFAULT_DTYPE
+                    dtype = np.result_type(*flatten(data))
+                if dtype == np.float_ or not flattened_data:
+                    dtype = DEFAULT_DTYPE
             else:
                 dtype = data.dtype
 
-        supported_dtype = dtype in core.ALL_DTYPES
+        supported_dtype = dtype in ALL_DTYPES
 
         if not dtype_unknown and not supported_dtype:
             raise TypeError(f"Data type '{dtype.__name__}' is not supported.")
         elif dtype_unknown and not supported_dtype:
             if is_ndarray:
                 warnings.warn(f"Passed NumPy array has an unsupported data type '{data.dtype}'. "
-                              f"Created a copy based on '{core.DEFAULT_DTYPE.__name__}' dtype.")
-            self._data = core.np.array(data, core.DEFAULT_DTYPE)
+                              f"Created a copy based on '{DEFAULT_DTYPE.__name__}' dtype.")
+            self._data = np.array(data, DEFAULT_DTYPE)
         elif not is_ndarray:
-            self._data = core.np.array(data, dtype)
+            self._data = np.array(data, dtype)
         else:
             self._data = data.astype(dtype, copy=False)
 
@@ -59,7 +59,7 @@ class Tensor:  # TODO: test empty tensor cases
         suffix = ''
         if self.nelement() == 0:
             suffix += f', size={self.shape}'
-        if self.dtype != core.DEFAULT_DTYPE:
+        if self.dtype != DEFAULT_DTYPE:
             suffix += f', dtype={self.dtype}'
         if self._grad_fn is not None:
             suffix += f', grad_fn={self._grad_fn}'
@@ -67,14 +67,14 @@ class Tensor:  # TODO: test empty tensor cases
             suffix += ', requires_grad=True'
         suffix += ')'
 
-        return core.REPR_PREFIX + core.np.array2string(
+        return REPR_PREFIX + np.array2string(
             a=self._data,
-            max_line_width=core.REPR_MAX_LINE_WIDTH,
-            precision=core.REPR_PRECISION,
-            separator=core.REPR_SEPARATOR,
-            prefix=core.REPR_PREFIX,
+            max_line_width=REPR_MAX_LINE_WIDTH,
+            precision=REPR_PRECISION,
+            separator=REPR_SEPARATOR,
+            prefix=REPR_PREFIX,
             suffix=suffix,
-            floatmode=core.REPR_FLOATMODE,
+            floatmode=REPR_FLOATMODE,
         ) + suffix
 
     def __str__(self) -> str:
@@ -269,11 +269,11 @@ class Tensor:  # TODO: test empty tensor cases
     def std(self, dim: int | Size | None = None, correction: int = 1, keepdim: bool = False) -> Tensor:
         return ops._std(self, dim, correction, keepdim)
 
-    @autocast(op_symbol='@', broadcasting=False, prohibited_types=[core.Scalar])
+    @autocast(op_symbol='@', broadcasting=False, prohibited_types=[Scalar])
     def __matmul__(self, other: np.ndarray | Tensor) -> Tensor:
         return ops.matmul.__wrapped__(self, other)
 
-    @autocast(op_symbol='@', reverse=True, broadcasting=False, prohibited_types=[core.Scalar])
+    @autocast(op_symbol='@', reverse=True, broadcasting=False, prohibited_types=[Scalar])
     def __rmatmul__(self, other: np.ndarray | Tensor) -> Tensor:
         return ops.matmul.__wrapped__(other, self)
 
@@ -337,7 +337,7 @@ class Tensor:  # TODO: test empty tensor cases
                 if type(ind) not in (int, slice, EllipsisType, NoneType):
                     return view._index(self, key)
 
-        elif isinstance(key, list | core.np.ndarray):
+        elif isinstance(key, list | np.ndarray):
             return view._index(self, key)
 
         return view._index_view(self, key)
@@ -429,7 +429,7 @@ class Tensor:  # TODO: test empty tensor cases
             return
 
         if self._grad_fn is None:
-            raise core.RedundantBackwardError
+            redundant_backward_error()
         elif self.shape != gradient.shape:
             raise RuntimeError("Initial gradient has data of a different size.")
         elif self.dtype != gradient.dtype:
@@ -445,5 +445,5 @@ class Tensor:  # TODO: test empty tensor cases
         check_locks(grad_fn)
 
 
-Operand = core.Scalar | core.np.ndarray | Tensor
+Operand = Scalar | np.ndarray | Tensor
 tensor = Tensor

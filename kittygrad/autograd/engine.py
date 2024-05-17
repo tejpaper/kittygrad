@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import abc
-import typing
 import warnings
 from functools import update_wrapper, wraps
 
-import kittygrad.core as core
 import kittygrad.tensor.tensor as tsr
-from kittygrad.autograd.context import Context
+from kittygrad.autograd.utils import inplace_modification_error, redundant_backward_error
+from kittygrad.core import *
+
+# TODO: create meaningful class with a smart interface
+Context = DotDict
 
 
 class BackwardAccess(abc.ABC):  # ba short
@@ -36,10 +38,10 @@ class AccumulateGrad(BackwardAccess):  # ag short
                                f"must match the size of its gradient {grad.shape}.")
 
         if self._tensor._grad is None:
-            self._tensor._grad = core.np.zeros_like(self._tensor._data)
+            self._tensor._grad = np.zeros_like(self._tensor._data)
 
         # += will cause a bug if self._tensor._grad is grad
-        core.strict.add(self._tensor._grad, grad, out=self._tensor._grad)
+        strict.add(self._tensor._grad, grad, out=self._tensor._grad)
 
 
 class FnBackward(BackwardAccess, abc.ABC):  # fn short
@@ -49,10 +51,10 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
         self._ctx = ctx
         self._next_functions = next_functions
 
-        self._grad = core.np.zeros_like(self._ctx.out._data)
+        self._grad = np.zeros_like(self._ctx.out._data)
         self._lock = 0  # instead of topological sort
 
-        self._versions = core.DotDict(
+        self._versions = DotDict(
             out=self._ctx.out.version,
             saved_tensors=[
                 tensor.version if tensor is not None else 0
@@ -70,21 +72,21 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
     def _inplace_modification_check(self) -> None:
         if self._ctx.out.version != self._versions.out:
-            raise core.InplaceModificationError
+            inplace_modification_error()
 
     def propagate(self, prev_grad: np.ndarray | np.generic) -> None:
         assert id(self._grad) != id(prev_grad)  # TODO: remove me after a bunch of tests
-        core.strict.add(self._grad, prev_grad, out=self._grad)
+        strict.add(self._grad, prev_grad, out=self._grad)
         self._lock -= 1
 
         if self._lock > 0:
             return
         elif self._lock < 0 or all(next_fn is None for next_fn in self._next_functions):
-            raise core.RedundantBackwardError()
+            redundant_backward_error()
 
         for tensor, old_version in zip(self._ctx.saved_tensors, self._versions.saved_tensors):
             if tensor is not None and tensor.version != old_version:
-                raise core.InplaceModificationError
+                inplace_modification_error()
 
         # retain_grad hook
         if self._ctx.out.retains_grad:
@@ -101,11 +103,11 @@ class FnBackward(BackwardAccess, abc.ABC):  # fn short
 
 
 class BackwardGraph:
-    pre_builder_hooks = core.DotDict()
-    post_builder_hooks = core.DotDict()
+    pre_builder_hooks = DotDict()
+    post_builder_hooks = DotDict()
     disabled = False
 
-    def __init__(self, function: typing.Callable, node: typing.Type[FnBackward]) -> None:
+    def __init__(self, function: typing.Callable[..., Tensor], node: typing.Type[FnBackward]) -> None:
         self.function = function
         self.node = node
         update_wrapper(self, function)
@@ -141,7 +143,7 @@ class BackwardGraph:
 
     @classmethod
     def mount(cls, node: typing.Type[FnBackward]) -> typing.Callable:
-        def backward_graph(function: typing.Callable) -> typing.Callable:
+        def backward_graph(function: typing.Callable[..., Tensor]) -> typing.Callable[..., Tensor]:
             @wraps(function)
             def apply_hooks(*args, **kwargs) -> Tensor:
 
@@ -164,9 +166,9 @@ class BackwardGraph:
         return backward_graph
 
     @classmethod
-    def disable(cls, function: typing.Callable) -> typing.Callable:
+    def disable(cls, function: typing.Callable[..., Tensor]) -> typing.Callable[..., Tensor]:
         @wraps(function)
-        def decorated(*args, **kwargs) -> typing.Any:
+        def decorated(*args, **kwargs) -> Tensor:
             cls.disabled = True
             output = function(*args, **kwargs)
             cls.disabled = False

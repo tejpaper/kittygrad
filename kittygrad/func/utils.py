@@ -1,9 +1,7 @@
-from __future__ import annotations
-
-# TODO: order (including imports)
+from kittygrad.core import Size
 
 
-def dim2tuple(dim: int | Size | None, ndim: int) -> tuple[int, ...]:
+def dim2tuple(dim: int | Size | None, ndim: int) -> Size:
     if isinstance(dim, int):
         return (dim,)
     elif dim is not None:

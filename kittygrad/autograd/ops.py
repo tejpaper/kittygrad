@@ -1,5 +1,5 @@
-import kittygrad.core as core
 from kittygrad.autograd.engine import FnBackward
+from kittygrad.core import *
 from kittygrad.func.utils import separate_dims
 
 
@@ -20,7 +20,7 @@ class NegBackward(FnBackward):
 
 class AbsBackward(FnBackward):
     def _propagate(self) -> None:
-        self._grad *= core.strict.sign(self._ctx.saved_tensors[0]._data)
+        self._grad *= strict.sign(self._ctx.saved_tensors[0]._data)
         self._next_functions[0].propagate(self._grad)
 
 
@@ -121,7 +121,7 @@ class PowBackward(FnBackward):
             base_fn.propagate(exponent._data / base._data * self._grad)
 
         if exponent_fn is not None:
-            exponent_fn.propagate(core.strict.log(base._data) * self._grad)
+            exponent_fn.propagate(strict.log(base._data) * self._grad)
 
 
 class IPowBackward(FnBackward):
@@ -135,27 +135,27 @@ class IPowBackward(FnBackward):
             base_fn.propagate(exponent / base * self._grad)
 
         if exponent_fn is not None:
-            exponent_fn.propagate(core.strict.log(base) * self._grad)
+            exponent_fn.propagate(strict.log(base) * self._grad)
 
 
 class SumBackward(FnBackward):
     def _propagate(self) -> None:
         expanded_shape, reps = separate_dims(self._ctx.shape, self._ctx.dim)
-        self._next_functions[0].propagate(core.np.tile(self._grad.reshape(expanded_shape), reps))
+        self._next_functions[0].propagate(np.tile(self._grad.reshape(expanded_shape), reps))
 
 
 class MeanBackward(FnBackward):
     def _propagate(self) -> None:
         expanded_shape, reps = separate_dims(self._ctx.shape, self._ctx.dim)
         self._next_functions[0].propagate(
-            core.np.tile(self._grad.reshape(expanded_shape), reps) / core.np.prod(reps, dtype=self._grad.dtype))
+            np.tile(self._grad.reshape(expanded_shape), reps) / np.prod(reps, dtype=self._grad.dtype))
 
 
 class VarBackward(FnBackward):
     def _var_std_propagate(self) -> None:
-        self._grad = core.np.tile(self._grad.reshape(self._ctx.expanded_shape), self._ctx.reps)
+        self._grad = np.tile(self._grad.reshape(self._ctx.expanded_shape), self._ctx.reps)
         self._grad *= self._ctx.residuals
-        self._grad += core.np.sum(self._grad, axis=self._ctx.dim, keepdims=True) / self._ctx.n
+        self._grad += np.sum(self._grad, axis=self._ctx.dim, keepdims=True) / self._ctx.n
         self._next_functions[0].propagate(self._grad)
 
     def _propagate(self) -> None:
@@ -178,10 +178,10 @@ class MmBackward(FnBackward):
         fn_1, fn_2 = self._next_functions
 
         if fn_1 is not None:
-            fn_1.propagate(core.strict.matmul(self._grad, core.np.swapaxes(matrix_2._data, -2, -1)))
+            fn_1.propagate(strict.matmul(self._grad, np.swapaxes(matrix_2._data, -2, -1)))
 
         if fn_2 is not None:
-            fn_2.propagate(core.strict.matmul(core.np.swapaxes(matrix_1._data, -2, -1), self._grad))
+            fn_2.propagate(strict.matmul(np.swapaxes(matrix_1._data, -2, -1), self._grad))
 
 
 class DotBackward(MulBackward):
@@ -194,10 +194,10 @@ class MvBackward(FnBackward):
         matrix_fn, vector_fn = self._next_functions
 
         if matrix_fn is not None:
-            matrix_fn.propagate(core.np.outer(self._grad, vector._data))
+            matrix_fn.propagate(np.outer(self._grad, vector._data))
 
         if vector_fn is not None:
-            vector_fn.propagate(core.strict.matmul(matrix._data.T, self._grad))
+            vector_fn.propagate(strict.matmul(matrix._data.T, self._grad))
 
 
 class BmmBackward(MmBackward):

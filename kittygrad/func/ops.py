@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import kittygrad.core as core
 import kittygrad.tensor.tensor as tsr
 from kittygrad.autograd.engine import BackwardGraph
 from kittygrad.autograd.ops import (
@@ -27,6 +26,7 @@ from kittygrad.autograd.ops import (
     MvBackward,
     BmmBackward,
 )
+from kittygrad.core import *
 from kittygrad.func.handler import autocast
 from kittygrad.func.utils import dim2tuple, separate_dims, check_dims
 
@@ -63,7 +63,7 @@ def _neg(_ctx: Context, tensor: Tensor) -> Tensor:
 def _abs(ctx: Context, tensor: Tensor) -> Tensor:
     ctx.saved_tensors.append(tensor)
     return tsr.tensor(
-        data=core.strict.abs(tensor._data),
+        data=strict.abs(tensor._data),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
@@ -72,7 +72,7 @@ def _abs(ctx: Context, tensor: Tensor) -> Tensor:
 @BackwardGraph.mount(ExpBackward)
 def _exp(_ctx: Context, tensor: Tensor) -> Tensor:
     return tsr.tensor(
-        data=core.strict.exp(tensor._data),
+        data=strict.exp(tensor._data),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
@@ -82,7 +82,7 @@ def _exp(_ctx: Context, tensor: Tensor) -> Tensor:
 def _log(ctx: Context, tensor: Tensor) -> Tensor:
     ctx.saved_tensors.append(tensor)
     return tsr.tensor(
-        data=core.strict.log(tensor._data),
+        data=strict.log(tensor._data),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
@@ -91,7 +91,7 @@ def _log(ctx: Context, tensor: Tensor) -> Tensor:
 @BackwardGraph.mount(AddBackward)
 def _add(_ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
     return tsr.tensor(
-        data=core.strict.add(tensor._data, other._data),
+        data=strict.add(tensor._data, other._data),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
@@ -100,14 +100,14 @@ def _add(_ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
 @BackwardGraph.mount(AddBackward)
 def _iadd(_ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
     tensor._requires_grad |= other.requires_grad
-    core.strict.add(tensor._data, other._data, out=tensor._data)
+    strict.add(tensor._data, other._data, out=tensor._data)
     return tensor
 
 
 @BackwardGraph.mount(SubBackward)
 def _sub(_ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
     return tsr.tensor(
-        data=core.strict.subtract(tensor._data, other._data),
+        data=strict.subtract(tensor._data, other._data),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
@@ -116,7 +116,7 @@ def _sub(_ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
 @BackwardGraph.mount(SubBackward)
 def _isub(_ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
     tensor._requires_grad |= other.requires_grad
-    core.strict.subtract(tensor._data, other._data, out=tensor._data)
+    strict.subtract(tensor._data, other._data, out=tensor._data)
     return tensor
 
 
@@ -127,7 +127,7 @@ def _mul(ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
         other if tensor.requires_grad else None,
     ])
     return tsr.tensor(
-        data=core.strict.multiply(tensor._data, other._data),
+        data=strict.multiply(tensor._data, other._data),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
@@ -142,17 +142,17 @@ def _imul(ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
         other._data.copy() if tensor.requires_grad else None,
     ]
 
-    core.strict.multiply(tensor._data, other._data, out=tensor._data)
+    strict.multiply(tensor._data, other._data, out=tensor._data)
     return tensor
 
 
 @BackwardGraph.mount(DivBackward)
 def _div(ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
-    other_inv = core.np.divide(1, other._data, dtype=other.dtype)
+    other_inv = np.divide(1, other._data, dtype=other.dtype)
     ctx.other_inv = other_inv
 
     return tsr.tensor(
-        data=core.strict.multiply(tensor._data, other_inv),
+        data=strict.multiply(tensor._data, other_inv),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
@@ -162,12 +162,12 @@ def _div(ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
 def _idiv(ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
     tensor._requires_grad |= other.requires_grad
 
-    other_inv = core.np.divide(1, other._data, dtype=other.dtype)
+    other_inv = np.divide(1, other._data, dtype=other.dtype)
 
     if tensor.requires_grad:
         ctx.other_inv = other_inv
 
-    core.strict.multiply(tensor._data, other_inv, out=tensor._data)
+    strict.multiply(tensor._data, other_inv, out=tensor._data)
 
     if other.requires_grad:
         ctx.out_array = tensor._data.copy()
@@ -182,7 +182,7 @@ def _pow(ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
         other if tensor.requires_grad else None,
     ])
     return tsr.tensor(
-        data=core.strict.power(tensor._data, other._data),
+        data=strict.power(tensor._data, other._data),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad or other.requires_grad,
     )
@@ -195,7 +195,7 @@ def _ipow(ctx: Context, tensor: Tensor, other: Tensor) -> Tensor:
     if tensor.requires_grad:
         ctx.saved_arrays = [tensor._data.copy(), other._data.copy()]
 
-    core.strict.power(tensor._data, other._data, out=tensor._data)
+    strict.power(tensor._data, other._data, out=tensor._data)
 
     if tensor.requires_grad:
         ctx.out_array = tensor._data.copy()
@@ -211,7 +211,7 @@ def _sum(ctx: Context, tensor: Tensor, dim: int | Size | None, keepdim: bool) ->
     ctx.shape = tensor.shape
     ctx.dim = dim
     return tsr.tensor(
-        data=core.np.sum(tensor._data, axis=dim, keepdims=keepdim),
+        data=np.sum(tensor._data, axis=dim, keepdims=keepdim),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
@@ -225,7 +225,7 @@ def _mean(ctx: Context, tensor: Tensor, dim: int | Size | None, keepdim: bool) -
     ctx.shape = tensor.shape
     ctx.dim = dim
     return tsr.tensor(
-        data=core.np.mean(tensor._data, axis=dim, keepdims=keepdim),
+        data=np.mean(tensor._data, axis=dim, keepdims=keepdim),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
@@ -238,14 +238,14 @@ def _var(ctx: Context, tensor: Tensor, dim: int | Size | None, correction: int, 
 
     if not tensor.requires_grad:
         return tsr.tensor(
-            data=core.np.var(tensor._data, axis=dim, ddof=correction, keepdims=keepdim),
+            data=np.var(tensor._data, axis=dim, ddof=correction, keepdims=keepdim),
             dtype=tensor.dtype,
             requires_grad=tensor.requires_grad,
         )
 
-    residuals = tensor._data - core.np.mean(tensor._data, axis=dim, keepdims=True)
+    residuals = tensor._data - np.mean(tensor._data, axis=dim, keepdims=True)
     expanded_shape, reps = separate_dims(tensor.shape, dim)
-    n = core.np.prod(reps, dtype=tensor.dtype)
+    n = np.prod(reps, dtype=tensor.dtype)
 
     ctx.dim = dim
     ctx.correction = correction
@@ -255,7 +255,7 @@ def _var(ctx: Context, tensor: Tensor, dim: int | Size | None, correction: int, 
     ctx.n = n
 
     return tsr.tensor(
-        data=core.np.sum(core.strict.square(residuals), axis=dim, keepdims=keepdim) / (n - correction),
+        data=np.sum(strict.square(residuals), axis=dim, keepdims=keepdim) / (n - correction),
         dtype=tensor.dtype,
         requires_grad=tensor.requires_grad,
     )
@@ -264,7 +264,7 @@ def _var(ctx: Context, tensor: Tensor, dim: int | Size | None, correction: int, 
 @BackwardGraph.mount(StdBackward)
 def _std(*args, **kwargs) -> Tensor:
     out = _var.__wrapped__(*args, **kwargs)
-    core.strict.sqrt(out._data, out=out._data)
+    strict.sqrt(out._data, out=out._data)
     return out
 
 
@@ -275,13 +275,13 @@ def _mm(ctx: Context, input: Tensor, mat2: Tensor) -> Tensor:
         mat2 if input.requires_grad else None,
     ])
     return tsr.tensor(
-        data=core.strict.matmul(input._data, mat2._data),
+        data=strict.matmul(input._data, mat2._data),
         dtype=input.dtype,
         requires_grad=input.requires_grad or mat2.requires_grad,
     )
 
 
-@autocast(broadcasting=False, prohibited_types=[core.Scalar])
+@autocast(broadcasting=False, prohibited_types=[Scalar])
 def mm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:
     if input.ndim != 2 or mat2.ndim != 2:
         raise RuntimeError(f"2D tensors expected, but got {input.ndim}D and {mat2.ndim}D tensors.")
@@ -297,7 +297,7 @@ def _dot(*args, **kwargs) -> Tensor:
     return _mm.__wrapped__(*args, **kwargs)
 
 
-@autocast(broadcasting=False, prohibited_types=[core.Scalar])
+@autocast(broadcasting=False, prohibited_types=[Scalar])
 def dot(input: Tensor, other: np.ndarray | Tensor) -> Tensor:
     if input.ndim != 1 or other.ndim != 1:
         raise RuntimeError(f"1D tensors expected, but got {input.ndim}D and {other.ndim}D tensors.")
@@ -314,7 +314,7 @@ def _mv(*args, **kwargs) -> Tensor:
     return _mm.__wrapped__(*args, **kwargs)
 
 
-@autocast(broadcasting=False, prohibited_types=[core.Scalar])
+@autocast(broadcasting=False, prohibited_types=[Scalar])
 def mv(input: Tensor, vec: np.ndarray | Tensor) -> Tensor:
     if input.ndim != 2:
         raise RuntimeError(f"input must be a matrix, not a {input.ndim}D tensor.")
@@ -332,7 +332,7 @@ def _bmm(*args, **kwargs) -> Tensor:
     return _mm.__wrapped__(*args, **kwargs)
 
 
-@autocast(broadcasting=False, prohibited_types=[core.Scalar])
+@autocast(broadcasting=False, prohibited_types=[Scalar])
 def bmm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:
     input_batch_dims = input.shape[:-2]
     mat2_batch_dims = mat2.shape[:-2]
@@ -350,7 +350,7 @@ def bmm(input: Tensor, mat2: np.ndarray | Tensor) -> Tensor:
     return _bmm(input, mat2)
 
 
-@autocast(broadcasting=False, prohibited_types=[core.Scalar])
+@autocast(broadcasting=False, prohibited_types=[Scalar])
 def matmul(input: Tensor, other: np.ndarray | Tensor) -> Tensor:
     if input.ndim == 0 or other.ndim == 0:
         raise RuntimeError("Input tensors must not be scalars.")
@@ -365,7 +365,7 @@ def matmul(input: Tensor, other: np.ndarray | Tensor) -> Tensor:
         return mv.__wrapped__(input, other)
 
     # numpy exceptions are absolutely fine
-    batch_dims = core.np.broadcast_shapes(input.shape[:-2], other.shape[:-2])
+    batch_dims = np.broadcast_shapes(input.shape[:-2], other.shape[:-2])
 
     if input.ndim == 1:
         return bmm.__wrapped__(input.unsqueeze(-2).expand(*batch_dims, -1, -1),

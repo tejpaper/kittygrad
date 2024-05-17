@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from kittygrad.nn.base import *
 from kittygrad.nn.init import kaiming_uniform
 

@@ -1,5 +1,5 @@
-import kittygrad.core as core
 from kittygrad.autograd.engine import FnBackward
+from kittygrad.core import *
 
 
 class SigmoidBackward(FnBackward):
@@ -28,5 +28,5 @@ class SoftmaxBackward(FnBackward):
         self._inplace_modification_check()
 
         self._grad *= self._ctx.out._data
-        self._grad -= core.np.sum(self._grad, axis=self._ctx.dim, keepdims=True) * self._ctx.out._data
+        self._grad -= np.sum(self._grad, axis=self._ctx.dim, keepdims=True) * self._ctx.out._data
         self._next_functions[0].propagate(self._grad)

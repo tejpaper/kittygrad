@@ -1,16 +1,16 @@
-import kittygrad.core as core
 from kittygrad.autograd.engine import FnBackward
 from kittygrad.autograd.utils import inv_permutation
+from kittygrad.core import *
 
 
 class TransposeBackward(FnBackward):
     def _propagate(self) -> None:
-        self._next_functions[0].propagate(core.np.swapaxes(self._grad, self._ctx.dim0, self._ctx.dim1))
+        self._next_functions[0].propagate(np.swapaxes(self._grad, self._ctx.dim0, self._ctx.dim1))
 
 
 class PermuteBackward(FnBackward):
     def _propagate(self) -> None:
-        self._next_functions[0].propagate(core.np.transpose(self._grad, inv_permutation(self._ctx.dims)))
+        self._next_functions[0].propagate(np.transpose(self._grad, inv_permutation(self._ctx.dims)))
 
 
 class SqueezeBackward(FnBackward):
@@ -32,8 +32,8 @@ class ExpandBackward(FnBackward):
 
 class IndexBackward(FnBackward):
     def _propagate(self) -> None:
-        extended_grad = core.np.zeros(self._ctx.shape, dtype=self._grad.dtype)
-        core.strict.add.at(extended_grad, self._ctx.key, self._grad)
+        extended_grad = np.zeros(self._ctx.shape, dtype=self._grad.dtype)
+        strict.add.at(extended_grad, self._ctx.key, self._grad)
         self._next_functions[0].propagate(extended_grad)
 
 

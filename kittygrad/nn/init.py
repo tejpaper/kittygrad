@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import math
 
 import kittygrad as kitty
-import kittygrad.core as core
+from kittygrad.core import *
 
 
 def calculate_gain(nonlinearity: str) -> Scalar:
@@ -21,7 +19,7 @@ def calculate_gain(nonlinearity: str) -> Scalar:
 def _calculate_fan_in_and_fan_out(shape: Size) -> tuple[int, int]:
     match len(shape):
         case 2:  # linear
-            return shape
+            return tuple(shape)
         case _:
             raise ValueError(f"There is no rule for determining fan in and fan out "
                              f"for a tensor with shape {shape}.")
@@ -37,8 +35,8 @@ def kaiming_uniform(shape: Size,
     bound = gain * math.sqrt(3 / fan_in)
 
     return kitty.tensor(
-        data=core.np.random.uniform(-bound, bound, shape),
-        dtype=core.DEFAULT_DTYPE if dtype is None else dtype,
+        data=np.random.uniform(-bound, bound, shape),
+        dtype=DEFAULT_DTYPE if dtype is None else dtype,
         requires_grad=requires_grad)
 
 
@@ -52,6 +50,6 @@ def kaiming_normal(shape: Size,
     std = gain / math.sqrt(fan_in)
 
     return kitty.tensor(
-        data=core.np.random.normal(scale=std, size=shape),
-        dtype=core.DEFAULT_DTYPE if dtype is None else dtype,
+        data=np.random.normal(scale=std, size=shape),
+        dtype=DEFAULT_DTYPE if dtype is None else dtype,
         requires_grad=requires_grad)
